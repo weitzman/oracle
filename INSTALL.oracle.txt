@@ -1,0 +1,18 @@
+HOW TO INSTALL ORACLE SUPPORT
+
+cd <path to drupal dir>
+tar xjvf <path to drupaloracle.*.tbz>
+
+
+TRY
+
+grant connect,resource to drupal identified by drupal;
+
+or 
+if yo want to use the db_prefix
+
+grant connect, resource, dba, create any trigger, drop any table, SELECT ANY table, SELECT ANY sequence to drupal7 identified by drupal7;
+
+http://<host>:<port>/drupal/install.php
+
+ENJOY
