@@ -1,7 +1,9 @@
+$Id 
+
 HOW TO INSTALL ORACLE SUPPORT
 
 cd <path to drupal dir>
-tar xjvf <path to drupaloracle.*.tbz>
+tar xzvf <oracle.tar.gz>
 
 
 TRY
