@@ -1,5 +1,4 @@
 <?php
-// $Id$
 
 /**
  * @ingroup database
@@ -52,12 +51,7 @@ class InsertQuery_oracle extends InsertQuery {
         $max_placeholder = 0;
         
     	foreach ($this->insertFields as $idx => $field)
-    	{
-	        if (strlen($insert_values[$idx])>ORACLE_MAX_VARCHAR2_LENGTH)
-	            $stmt->bindParam(':db_insert_placeholder_' . $max_placeholder++, $this->connection->writeBlob($insert_values[$idx]));
-	        else
-	            $stmt->bindParam(':db_insert_placeholder_'. $max_placeholder++, DatabaseConnection_oracle::nr($insert_values[$idx]));
-        }
+          $stmt->bindParam(':db_insert_placeholder_'. $max_placeholder++, $this->connection->cleanupArgValue($insert_values[$idx]));
       
         $last_insert_id = $this->connection->query($stmt,  array(), $this->queryOptions);
     }
@@ -155,12 +149,8 @@ class UpdateQuery_oracle extends UpdateQuery {
 
     foreach ($fields as $field => &$value)
     {
-      $placeholder = ':db_update_placeholder_' . ($max_placeholder++);
-
-      if (strlen($value)>ORACLE_MAX_VARCHAR2_LENGTH)
-        $stmt->bindParam($placeholder, $this->connection->writeBlob($value));
-      else
-        $stmt->bindParam($placeholder, DatabaseConnection_oracle::nr($value));
+        $placeholder = ':db_update_placeholder_' . ($max_placeholder++);
+        $stmt->bindParam($placeholder, $this->connection->cleanupArgValue($value));
     }
 
     if (count($this->condition)) {

@@ -1,5 +1,4 @@
 <?php
-// $Id$ 
 
 /**
  * @file
@@ -19,7 +18,7 @@ class DatabaseSchema_oracle extends DatabaseSchema {
   private static $tableInformation = array();
 
   private $foundLongIdentifier = false;
-
+  
   public function oid($name, $prefix= FALSE, $quote= TRUE)
   {
   	  $ret= $name;
@@ -27,7 +26,7 @@ class DatabaseSchema_oracle extends DatabaseSchema {
   	  if (strlen($ret)>ORACLE_IDENTIFIER_MAX_LENGTH)
   	  {
   	  	$this->foundLongIdentifier= true;
-        $ret= db_query("select identifier.get_for(?) from dual",array(strtoupper($ret)))->fetchField();
+        $ret= $this->connection->oracleQuery("select identifier.get_for(?) from dual",array(strtoupper($ret)))->fetchColumn();
   	  }
   	  
   	  if ($prefix)
@@ -57,20 +56,7 @@ class DatabaseSchema_oracle extends DatabaseSchema {
   	  {  	  	
   	  	  ////syslog(LOG_ERR,"non cached: ".$table);
   	      $info= new stdClass();
-  	      $info->{"sequence_name"} = db_query("select identifier.sequence_for_table(?,?) sequence_name from dual",array(strtoupper($table),$schema))->fetchField();
-  	      
-  	      /*
-  	      $info->{"lobs"}= array();
-  	      
-  	      $result = db_query("select column_name, data_type from user_tab_columns where data_type in ('BLOB','CLOB') and table_name= ?",array(strtoupper($table)));
-  	      
-  	      while ($row=db_fetch_object($result))
-  	      {
-  	      	////syslog(LOG_ERR,"row: ".print_r($row,true));
-  	        $info->lobs[strtolower($row->column_name)]= $row->data_type;
-  	      }
-  	      ////syslog(LOG_ERR,"lobs: ".print_r($info->lobs,true));
-  	      */
+  	      $info->{"sequence_name"} = $this->connection->oracleQuery("select identifier.sequence_for_table(?,?) sequence_name from dual",array(strtoupper($table),$schema))->fetchColumn();
   	      
   	      DatabaseSchema_oracle::$tableInformation[$schema."|".$table]= $info;
   	  }
@@ -119,17 +105,17 @@ class DatabaseSchema_oracle extends DatabaseSchema {
                     if inserting then       
                     ';
   	 
-  	 $stmt=   db_query("select column_name,
-                               data_default
-                          from all_tab_columns
-                         where column_name not in (select field_name from table(identifier.get_serial(?,?)))
-                           and owner= nvl(user,?)
-                           and table_name= ?
-                           and data_default is not null",array($table,$schema,$schema,$oname));
+  	 $stmt=   $this->connection->oracleQuery("select column_name,
+					                                 data_default
+					                            from all_tab_columns
+					                           where column_name not in (select field_name from table(identifier.get_serial(?,?)))
+					                             and owner= nvl(user,?)
+					                             and table_name= ?
+					                             and data_default is not null",array($table,$schema,$schema,$oname));
   	 
   	 $def= false;
   	 
-  	 while ($row=db_fetch_object($stmt))
+  	 while ($row=$stmt->fetchObject())
   	 {
   	   $def= true;
   	   $trigger.= '
@@ -283,7 +269,7 @@ class DatabaseSchema_oracle extends DatabaseSchema {
     }
 
     if (isset($spec['default'])) {
-      $default = is_string($spec['default']) ? $this->connection->quote(DatabaseConnection_oracle::nr($spec['default'])) : $spec['default'];
+      $default = is_string($spec['default']) ? $this->connection->quote($this->connection->cleanupArgValue($spec['default'])) : $spec['default'];
       
       $sql .= " default $default";
     }
@@ -562,7 +548,7 @@ class DatabaseSchema_oracle extends DatabaseSchema {
       $default = 'NULL';
     }
     else {
-      $default = is_string($default) ? $this->connection->quote(DatabaseConnection_oracle::nr($default)) : $default;
+      $default = is_string($default) ? $this->connection->quote($this->connection->cleanupArgValue($default)) : $default;
     }
 
     $ret[] = update_sql('ALTER TABLE ' . $this->oid($table,true) . ' MODIFY (' . $this->oid($field) . ' DEFAULT ' . $default .' )');

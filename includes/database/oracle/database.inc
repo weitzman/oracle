@@ -6,12 +6,13 @@
  * Database interface code for Oracle database servers.
  */
 
-define('ORACLE_EMPTY_STRING_REPLACER','^');
-define('ORACLE_IDENTIFIER_MAX_LENGTH',30);
-define('ORACLE_LONG_IDENTIFIER_PREFIX','L#');
-define('ORACLE_BLOB_PREFIX','B^#');
-define('ORACLE_MAX_VARCHAR2_LENGTH',4000);
-define('ORACLE_ROWNUM_ALIAS','RWN_TO_REMOVE');
+
+define('ORACLE_EMPTY_STRING_REPLACER','^'); // used to replace '' character in queries
+define('ORACLE_IDENTIFIER_MAX_LENGTH',30); // maximum oracle identifier length (e.g. table names cannot exceed this length)  
+define('ORACLE_LONG_IDENTIFIER_PREFIX','L#'); // prefix used for long identifier keys
+define('ORACLE_BLOB_PREFIX','B^#'); // prefix used for BLOB values
+define('ORACLE_MAX_VARCHAR2_LENGTH',4000); // maximum length for a string value in a table column in oracle 
+define('ORACLE_ROWNUM_ALIAS','RWN_TO_REMOVE'); // alias used for queryRange filtering (we have to remove that from resultsets)
 
 openlog("oracle", LOG_PID | LOG_PERROR, LOG_LOCAL0);
 
@@ -24,23 +25,21 @@ include_once DRUPAL_ROOT . '/includes/database/prefetch.inc';
 
 class DatabaseConnection_oracle extends DatabaseConnection
 {
-
-  // holds search reg exp pattern to match known long identifiers
-  private static $searchLongIdentifiers= array();
-  
-  // holds replacement string to replace known long identifiers
-  private static $replaceLongIdentifiers= array();
-  
-  // holds long identifier hashmap
-  private static $hashLongIdentifiers= array();
-  
-  // internally used to enable long identifier removal
-  public static $enableLongIdentifiers= false;
+	
+  // long identifier handler class
+  public $lih;
+	
+  // shortcut function to execute statements directly on the database without checks
+  public function oracleQuery($query, $args=NULL)
+  {
+  	  $stmt= parent::prepare($query);
+  	  $stmt->execute($args);
+  	  return $stmt;
+  }
   
   public function __construct(array $connection_options = array())
   {
     //syslog(LOG_ERR,"ORACLE CONNECTION");
-    
     // We don't need a specific PDOStatement class here, we simulate it below.
     $this->statementClass = NULL;
     
@@ -51,9 +50,9 @@ class DatabaseConnection_oracle extends DatabaseConnection
     $this->transactionalDDLSupport = FALSE;
     
     // Default to TCP connection on port 5432.
-    if (empty($connection_options['port'])) {
+    if (empty($connection_options['port'])) 
       $connection_options['port'] = 1521;
-    }
+    
 
     $dsn = 'oci:dbname=//' . $connection_options['host'] . ':' . $connection_options['port'].'/' . $connection_options['database'] . ';charset=UTF-8';
     parent::__construct($dsn, $connection_options['username'], $connection_options['password'], array(
@@ -73,10 +72,14 @@ class DatabaseConnection_oracle extends DatabaseConnection
     
     $options= array('return' => Database::RETURN_NULL);
     
-    $this->query("ALTER SESSION SET cursor_sharing='FORCE'",array(),$options);
-    $this->query("ALTER SESSION SET NLS_NUMERIC_CHARACTERS = '.,'",array(),$options);
+    // force cursor sharing to prevent unfair modules (read more on cursor_sharing http://www.oracle.com/technology/oramag/oracle/06-jan/o16asktom.html) 
+    $this->oracleQuery("ALTER SESSION SET cursor_sharing='FORCE'");
     
-    $this->resetLongIdentifiers();
+    // force decimal characters used in string representation of floats to avoid casting problems
+    $this->oracleQuery("ALTER SESSION SET NLS_NUMERIC_CHARACTERS = '.,'");
+    
+    // initialize the long identifier handler
+    $this->lih= new DatabaseLongIdentifierHandler_oracle($this);
   }
   
   public function query($query, array $args = array(), $options = array(), $retried = FALSE) {
@@ -92,9 +95,9 @@ class DatabaseConnection_oracle extends DatabaseConnection
       else {
         //syslog(LOG_ERR,"query: ". $query." args: ".print_r($args,true)." ret ".$options['return']);
       	$modified = $this->expandArguments($query, $args);
-        $stmt = $this->prepareQuery($query, !$modified);
+        $stmt = $this->prepareQuery($query);
         
-        $stmt->execute(DatabaseConnection_oracle::processArgs($args), $options);
+        $stmt->execute($this->cleanupArgs($args), $options);
       }
       
       //syslog(LOG_ERR,"options: ".print_r($options,true));
@@ -117,7 +120,7 @@ class DatabaseConnection_oracle extends DatabaseConnection
       
       if (isset($e->errorInfo)&&is_array($e->errorInfo)&&$e->errorInfo[1]=='00972'&&!$retried) // catch long identifier errors for alias columns
       {
-          $this->findAndRemoveLongIdentifiers($query);
+          $this->lih->findAndRemoveLongIdentifiers($query);
           return $this->query($query, $args, $options, TRUE);
       }
          
@@ -141,31 +144,44 @@ class DatabaseConnection_oracle extends DatabaseConnection
   }
   
   public function lastInsertId($sequence_name) {
-  	$stmt= parent::prepare("select ".$sequence_name.".currval from dual");
-  	$stmt->execute();
-  	return $stmt->fetchColumn();
+  	return $this->oracleQuery("select ".$sequence_name.".currval from dual")->fetchColumn();
   }
 
   public function queryRange($query, array $args, $from, $count, array $options = array()) {
   	
     $start= ((int)$from+1);
     $end= ((int)$count+(int)$from);
-  	
-    return $this->query('SELECT * FROM (SELECT TAB.*, ROWNUM '.ORACLE_ROWNUM_ALIAS.' FROM ('. $query .') TAB) WHERE '.ORACLE_ROWNUM_ALIAS.' BETWEEN '.$start.' AND '.$end, $args, $options);
     
+    $queryRange= 'SELECT * FROM (SELECT TAB.*, ROWNUM '.ORACLE_ROWNUM_ALIAS.' FROM ('. $query .') TAB) WHERE '.ORACLE_ROWNUM_ALIAS.' BETWEEN ';
+    
+    if (DatabaseConnection_oracle::is_assoc($args))
+    {
+    	 $args["oracle_rwn_start"]= $start;
+    	 $args["oracle_rwn_end"]= $end;
+         $queryRange.= ':oracle_rwn_start AND :oracle_rwn_end';
+    }
+    else  	
+    {
+    	 $args[]= $start;
+    	 $args[]= $end;
+         $queryRange.= '? AND ?';
+    }
+    
+    return $this->query( $queryRange, $args, $options );
+
   }
 
   public function queryTemporary($query, array $args, array $options = array()) {
     $tablename = $this->generateTemporaryTableName();
-    try { $this->query("DROP TABLE {". $tablename ."}"); } catch (Exception $ex) { /* ignore drop errors */ }
-    $this->query('CREATE GLOBAL TEMPORARY TABLE {'. $tablename .'} ON COMMIT PRESERVE ROWS AS '.$query, $args, $options);
+    try { db_query("DROP TABLE {". $tablename ."}"); } catch (Exception $ex) { /* ignore drop errors */ }
+    db_query('CREATE GLOBAL TEMPORARY TABLE {'. $tablename .'} ON COMMIT PRESERVE ROWS AS '.$query, $args);
     return $tablename;
   }
   
   public function generateTemporaryTableName()
   {
   	  // FIXME: create a cleanup job
-  	  return "TMP_".$this->query("SELECT sid from v\$session where audsid = userenv('sessionid')")->fetchField()."_".$this->temporaryNameIndex++; 
+  	  return "TMP_".$this->oracleQuery("SELECT sid from v\$session where audsid = userenv('sessionid')")->fetchColumn()."_".$this->temporaryNameIndex++; 
   }
   
   public function quote($string)
@@ -203,18 +219,16 @@ class DatabaseConnection_oracle extends DatabaseConnection
 		  else
 		  if (is_array($db_prefix)) 
 		  {
-		      // dont know how is used
+		      // FIXME: dont know how is used
 		      //syslog(LOG_ERR, 'AAAAAAAAAAAAAAAAAAAAAAAAAA: '.print_r($db_prefix,true));
 		  }
 		  else
 		  {
 		     ////syslog(LOG_ERR, 'grant connect,resource to "'. $db_prefix .'" identified by "'. $db_prefix .'"');
-		     // check whether the schema exists or create it TODO: REMEMBER THAT THE DDL IMPLICITLY COMMITS IN ORACLE !!!!!
-		     if (!$this->query(parent::prepare("select 1 from all_users where username= '". strtoupper($db_prefix) ."'"))->fetchColumn())
-		     { 
-			     $stmt= parent::prepare('grant connect,resource to "'. strtoupper($db_prefix) .'" identified by "'. strtoupper($db_prefix) .'"');
-			     $stmt->execute();
-		     }
+		     
+		     // check whether the schema exists or create it TODO: REMEMBER THAT THE DDL (grant) IMPLICITLY COMMITS IN ORACLE !!!!!
+		     if (!$this->oracleQuery("select 1 from all_users where username= ?",array(strtoupper($db_prefix)))->fetchColumn())
+			     $this->oracleQuery('grant connect,resource to "'. strtoupper($db_prefix) .'" identified by "'. strtoupper($db_prefix) .'"');
 		  }
 		   
 		
@@ -240,17 +254,15 @@ class DatabaseConnection_oracle extends DatabaseConnection
 	  
   }
   
-  protected function prepareQuery($query, $cache = TRUE) {
+  // TODO: would be wonderfull to enble a memcached switch here
+  protected function prepareQuery($query) {
     $iquery = md5($this->prefixTables($query));
     
     if (empty($this->preparedStatements[$iquery])) {
       $oquery= $query;
       
       $oquery= $this->escapeAnsi($oquery);
-      
-      if (DatabaseConnection_oracle::$enableLongIdentifiers) 
-        $oquery= $this->escapeLongIdentifiers($oquery);
-
+      $oquery= $this->lih->escapeLongIdentifiers($oquery);
       $oquery= $this->escapeReserved($oquery);
       $oquery= $this->escapeCompatibility($oquery);
       $oquery= $this->prefixTables($oquery);
@@ -300,87 +312,12 @@ class DatabaseConnection_oracle extends DatabaseConnection
         return preg_replace($search, $replace, $query);  	
   }
   
-  private function escapeLongIdentifiers($query)
-  {
-  	    $ret= "";
-  	    
-  	    // do not replace things in literals
-  	    $literals= array(); 
-  	    preg_match_all("/'.*?'/", $query,$literals);
-  	    
-  	    $literals= $literals[0];
-  	    
-        $replaceable = preg_split("/'.*?'/", $query);
-        
-        $lidx= 0;
-
-        // assume that a query cannot start with a literal and that 
-        foreach ($replaceable as $toescape)
-             $ret.= $this->removeLongIdentifiers($toescape).(isset($literals[$lidx]) ? $literals[$lidx++] : "");          
-        
-        return $ret;  	
-  }
   
-  private function removeLongIdentifiers($queryPart)
-  {
-  	  return str_replace(DatabaseConnection_oracle::$searchLongIdentifiers, DatabaseConnection_oracle::$replaceLongIdentifiers, $queryPart);
-  }
-  
-  private function removeFromCachedStatements($query)
+  public function removeFromCachedStatements($query)
   {
   	   $iquery = md5($this->prefixTables($query));
        if (isset($this->preparedStatements[$iquery])) 
          unset($this->preparedStatements[$iquery]);
-  }
-  
-  private function findAndRecordLongIdentifiers($queryPart)
-  {
-  	preg_match_all("/\w+/", $queryPart, $words);
-  	$words = $words[0];
-     
-  	foreach ($words as $word)
-  	  if (strlen($word)>ORACLE_IDENTIFIER_MAX_LENGTH)
-  	   $this->schema()->oid($word);
-  }
-  
-  private function findAndRemoveLongIdentifiers($query)
-  {
-        $this->removeFromCachedStatements($query);
-
-  	    // do not replace things in literals
-  	    $literals= array(); 
-        $replaceable = preg_split("/'.*?'/", $query);
-        
-        $lidx= 0;
-
-        // assume that a query cannot start with a literal and that 
-        foreach ($replaceable as $toescape)
-             $this->findAndRecordLongIdentifiers($toescape);
-
-        $this->resetLongIdentifiers();
-  }
-  
-  public function resetLongIdentifiers()
-  {
-	DatabaseConnection_oracle::$enableLongIdentifiers= false;
-  	
-    try
-    {
-		    $result= $this->query("select id, identifier from long_identifiers where substr(identifier,1,3) not in ('IDX','TRG','PK_','UK_')");
-		    
-		    while ($row= $result->fetchObject())
-		    {
-		    	  DatabaseConnection_oracle::$searchLongIdentifiers[]= $row->identifier;
-		    	  DatabaseConnection_oracle::$replaceLongIdentifiers[]= ORACLE_LONG_IDENTIFIER_PREFIX.$row->id;
-		    	  DatabaseConnection_oracle::$hashLongIdentifiers[ORACLE_LONG_IDENTIFIER_PREFIX.$row->id]= $row->identifier;
-		    }
-		    
-		    DatabaseConnection_oracle::$enableLongIdentifiers= true;
-    }
-    catch (Exception $ex)
-    {
-    	 // ignore until long_identifiers table is not created
-    }
   }
   
   private function escapeCompatibility($query)
@@ -413,46 +350,37 @@ class DatabaseConnection_oracle extends DatabaseConnection
   public function makeSequenceName($table, $field) {
     return $this->schema()->makeSequenceName($table, $field);
   }
-  
-  public function ddl($ddl)
+    
+  public function cleanupArgValue($value)
   {
-  	  $stmt= parent::prepare($ddl);
-  	  $stmt->execute();
+  	    if (is_string($value))
+  	    {
+  	      if ($value=='')
+  	        return ORACLE_EMPTY_STRING_REPLACER;
+  	      elseif (strlen($value)>ORACLE_MAX_VARCHAR2_LENGTH)
+  	        return $this->writeBlob($value);
+  	      else
+  	        return $value;
+  	    }
+  	    else
+  	      return $value;
   }
   
-
-  public static function nr($string)
-  {
-  	  if (is_string($string)&&$string=='')
-  	    return ORACLE_EMPTY_STRING_REPLACER;
-  	  else
-  	    return $string;
-  }
-  
-  public static function processArgs($args)
+  public function cleanupArgs($args)
   {
   	  $ret= array();
   	  
-  	  foreach ($args as $key => $value)
-  	  {
-  	  	if (is_string($key)) $key= DatabaseConnection_oracle::escapeReserved($key);
-  	  	
-  	    if (is_string($value)&&$value=='')
-  	      $ret[$key]= ORACLE_EMPTY_STRING_REPLACER;
-  	    else
-  	      $ret[$key]= $value;
-  	  }
+  	  if (DatabaseConnection_oracle::is_assoc($args))
+  	    foreach ($args as $key => $value)
+  	    {
+  	    	 $key= DatabaseConnection_oracle::escapeReserved($key); // bind variables cannot have reserved names
+  	    	 $ret[$key]= $this->cleanupArgValue($value);
+  	    }
+  	  else
+   	    foreach ($args as $key => $value)
+  	  	  $ret[$key]= $this->cleanupArgValue($value);
   	      
-  	  
   	  return $ret;
-  }
-  
-  private function stringToStream($value)
-  {
-        $stream = fopen('php://memory', 'a');
-        fwrite($stream, $value);
-        rewind($stream);
-  	    return $stream;
   }
   
   public function writeBlob($value)
@@ -460,7 +388,7 @@ class DatabaseConnection_oracle extends DatabaseConnection
   	   $hash= md5($value);
   	   $handle= 0;
   	   
-  	   $stream= $this->stringToStream($value);
+  	   $stream= DatabaseConnection_oracle::stringToStream($value);
   	   
   	   $stmt= parent::prepare("begin identifier.write_blob(?,?,?); end;");
   	   $stmt->bindParam(1, $hash, PDO::PARAM_STR, 32);
@@ -485,27 +413,24 @@ class DatabaseConnection_oracle extends DatabaseConnection
  	  return $stmt->fetchObject()->content;
   }
   
-  public function nrr($string)
+  public function cleanupFetchedValue($value)
   {
-  	  if (is_string($string))
+  	  if (is_string($value))
   	  {
-  	    if ($string==ORACLE_EMPTY_STRING_REPLACER)
+  	    if ($value==ORACLE_EMPTY_STRING_REPLACER)
   	      return '';
-  	    elseif ($this->isBlob($string))
-  	      return $this->readBlob($string);
+  	    elseif ($this->isBlob($value))
+  	      return $this->readBlob($value);
   	    else
-  	      return $string;
+  	      return $value;
   	  }
   	  else
-  	    return $string;
+  	    return $value;
   }
   
-  public static function recordnrr($record)
+  public function resetLongIdentifiers()
   {
-  	  if (is_string($string)&&$string==ORACLE_EMPTY_STRING_REPLACER)
-  	    return '';
-  	  else
-  	    return $string;
+  	 $this->lih->resetLongIdentifiers();
   }
   
   public static function isLongIdentifier($key)
@@ -518,9 +443,17 @@ class DatabaseConnection_oracle extends DatabaseConnection
   	 return (substr($value,0,strlen(ORACLE_BLOB_PREFIX))==ORACLE_BLOB_PREFIX);
   }
   
-  public static function longIdentifierKey($key)
+  private static function stringToStream($value)
   {
-  	 return DatabaseConnection_oracle::$hashLongIdentifiers[strtoupper($key)];
+     $stream = fopen('php://memory', 'a');
+     fwrite($stream, $value);
+     rewind($stream);
+  	 return $stream;
+  }
+  
+  public static function is_assoc($array) 
+  {
+     return (is_array($array) && 0 !== count(array_diff_key($array, array_keys(array_keys($array)))));
   }
   
 }
@@ -578,9 +511,6 @@ class DatabaseStatement_oracle extends DatabaseStatementPrefetch implements Iter
           throw $e;
     }
     
-    // Destroy the statement as soon as possible.
-    // See DatabaseConnection_sqlite::PDOPrepare() for explanation.
-    // @see DatabaseConnection_sqlite::PDOPrepare()
     unset($statement);
 
     $this->resultRowCount = count($this->data);
@@ -603,7 +533,30 @@ class DatabaseStatement_oracle extends DatabaseStatementPrefetch implements Iter
     return $return;
   }
   
-  private function cleanupNr($f)
+  /**
+   * 
+   * @param $f fetched object
+   * @return $f cleaned up from:
+   * 
+   *  1) long identifiers place holders (may occur in queries like:
+   *               select 1 as myverylongidentifier from mytable 
+   *     this is transalted on query submission as e.g.: 
+   *               select 1 as L#321 from mytable
+   *     so when we fetch this object (or array) we will have
+   *     stdClass ( "L#321" => 1 ) or Array ( "L#321" => 1 ).
+   *     but the code is especting to access the field as myobj->myverylongidentifier,
+   *     so we need to translate the "L#321" back to "myverylongidentifier").
+   *     
+   *  2) blob placeholders:
+   *     we can find values like B^#2354, and we have to translate those values
+   *     back to their original long value so we read blob id 2354 of table blobs   
+   *     
+   *  3) removes the rwn column from queryRange queries
+   *  
+   *  4) translate empty string replacement back to empty string
+   *  
+   */
+  private function cleanupFetched($f)
   {
   	    if (is_array($f))
   	      foreach ($f as $key => $value)
@@ -612,11 +565,11 @@ class DatabaseStatement_oracle extends DatabaseStatementPrefetch implements Iter
   	      		unset($f[$key]);
   	      	elseif (DatabaseConnection_oracle::isLongIdentifier($key)) // long identifier
   	      	{
-  	      		$f[DatabaseConnection_oracle::longIdentifierKey($key)]= $this->cleanupNr($value);
+  	      		$f[$this->dbh->lih->longIdentifierKey($key)]= $this->cleanupFetched($value);
   	      		unset($f[$key]);
   	      	}
   	      	else
-  	          $f[$key]= $this->cleanupNr($value);
+  	          $f[$key]= $this->cleanupFetched($value);
   	      }
   	    elseif (is_object($f))
           foreach ($f as $key => $value)
@@ -625,14 +578,14 @@ class DatabaseStatement_oracle extends DatabaseStatementPrefetch implements Iter
   	      		unset($f->{$key});
   	      	elseif (DatabaseConnection_oracle::isLongIdentifier($key)) // long identifier
   	      	{
-  	      	  $f->{DatabaseConnection_oracle::longIdentifierKey($key)}= $this->cleanupNr($value);
+  	      	  $f->{$this->dbh->lih->longIdentifierKey($key)}= $this->cleanupFetched($value);
   	      	  unset($f->{$key});
   	      	}
   	      	else
-  	      	  $f->{$key}= $this->cleanupNr($value);
+  	      	  $f->{$key}= $this->cleanupFetched($value);
   	      }
   	    else
-  	        $f= $this->dbh->nrr($f);
+  	        $f= $this->dbh->cleanupFetchedValue($f);
   	        
   	    return $f;
   }
@@ -644,56 +597,159 @@ class DatabaseStatement_oracle extends DatabaseStatementPrefetch implements Iter
   
   public function current() {
   	  //syslog(LOG_ERR,"lallero");
-      return $this->cleanupNr(parent::current());
+      return $this->cleanupFetched(parent::current());
   } 
   
   public function next() {
   	  //syslog(LOG_ERR,"lallero");
-  	  	return $this->cleanupNr(parent::next());
+  	  	return $this->cleanupFetched(parent::next());
   }
    
   public function fetch($fetch_style = NULL, $cursor_orientation = PDO::FETCH_ORI_NEXT, $cursor_offset = NULL) {
   	  //syslog(LOG_ERR,"lallero");
-  	  	return $this->cleanupNr(parent::fetch($fetch_style,$cursor_orientation,$cursor_offset));
+  	  	return $this->cleanupFetched(parent::fetch($fetch_style,$cursor_orientation,$cursor_offset));
   }
 
   public function fetchField($index = 0) {
   	  //syslog(LOG_ERR,"lallero");
-  	  	return $this->cleanupNr(parent::fetchField($index));
+  	  	return $this->cleanupFetched(parent::fetchField($index));
   }
 
   public function fetchObject($class_name = NULL, $constructor_args = array()) {
   	  //syslog(LOG_ERR,"lallero");
-  	  	return $this->cleanupNr(parent::fetchObject($class_name,$constructor_args));
+  	  	return $this->cleanupFetched(parent::fetchObject($class_name,$constructor_args));
   }
 
   public function fetchAssoc() {
   	  //syslog(LOG_ERR,"lallero");
-  	return $this->cleanupNr(parent::fetchAssoc());
+  	return $this->cleanupFetched(parent::fetchAssoc());
   }
 
   public function fetchAll($fetch_style = NULL, $fetch_column = NULL, $constructor_args = NULL) {
   	  //syslog(LOG_ERR,"lallero");
-  	return $this->cleanupNr(parent::fetchAll($fetch_style,$fetch_column,$constructor_args));
+  	return $this->cleanupFetched(parent::fetchAll($fetch_style,$fetch_column,$constructor_args));
   }
 
   public function fetchCol($index = 0) {
   	  //syslog(LOG_ERR,"lallero");
-  	return $this->cleanupNr(parent::fetchCol($index));
+  	return $this->cleanupFetched(parent::fetchCol($index));
   }
 
   public function fetchAllKeyed($key_index = 0, $value_index = 1) {
   	  //syslog(LOG_ERR,"lallero");
-  	return $this->cleanupNr(parent::fetchAllKeyed($key_index,$value_index));
+  	return $this->cleanupFetched(parent::fetchAllKeyed($key_index,$value_index));
   }
 
   public function fetchAllAssoc($key, $fetch_style = PDO::FETCH_OBJ) {
   	    	  //syslog(LOG_ERR,"lallero");
-  	return $this->cleanupNr(parent::fetchAllAssoc($key,$fetch_style));
+  	return $this->cleanupFetched(parent::fetchAllAssoc($key,$fetch_style));
   }
+  
 }
 
+class DatabaseLongIdentifierHandler_oracle
+{
+  // holds search reg exp pattern to match known long identifiers
+  private $searchLongIdentifiers= array();
+  
+  // holds replacement string to replace known long identifiers
+  private $replaceLongIdentifiers= array();
+  
+  // holds long identifier hashmap
+  private $hashLongIdentifiers= array();
+  
+  // the parent connection
+  private $connection;
+	
+  public function __construct($connection)
+  {
+    $this->connection = $connection;
+    
+    // load long identifiers for the first time in this connection
+    $this->resetLongIdentifiers();
+  }
+  
+  public function escapeLongIdentifiers($query)
+  {
+  	    $ret= "";
+  	    
+  	    // do not replace things in literals
+  	    $literals= array(); 
+  	    preg_match_all("/'.*?'/", $query,$literals);
+  	    
+  	    $literals= $literals[0];
+  	    
+        $replaceable = preg_split("/'.*?'/", $query);
+        
+        $lidx= 0;
 
+        // assume that a query cannot start with a literal and that 
+        foreach ($replaceable as $toescape)
+             $ret.= $this->removeLongIdentifiers($toescape).(isset($literals[$lidx]) ? $literals[$lidx++] : "");          
+        
+        return $ret;  	
+  }
+  
+  public function removeLongIdentifiers($queryPart)
+  {
+  	  return preg_replace($this->searchLongIdentifiers, $this->replaceLongIdentifiers, $queryPart);
+  }
+  
+  // TODO: would be wonderfull to enble a memcached switch here
+  public function resetLongIdentifiers()
+  {
+  	
+    try
+    {
+		    $result= $this->connection->oracleQuery("select id, identifier from long_identifiers where substr(identifier,1,3) not in ('IDX','TRG','PK_','UK_')");
+		    
+		    while ($row= $result->fetchObject())
+		    {
+		    	  $this->searchLongIdentifiers[]= "/".$row->identifier."/i";
+		    	  $this->replaceLongIdentifiers[]= ORACLE_LONG_IDENTIFIER_PREFIX.$row->id;
+		    	  $this->hashLongIdentifiers[ORACLE_LONG_IDENTIFIER_PREFIX.$row->id]= strtolower($row->identifier);
+		    }
+		    
+    }
+    catch (Exception $ex)
+    {
+    	 // ignore until long_identifiers table is not created
+    }
+  }
+  
+  public function findAndRecordLongIdentifiers($queryPart)
+  {
+  	preg_match_all("/\w+/", $queryPart, $words);
+  	$words = $words[0];
+     
+  	foreach ($words as $word)
+  	  if (strlen($word)>ORACLE_IDENTIFIER_MAX_LENGTH)
+  	   $this->connection->schema()->oid($word);
+  }
+  
+  public function findAndRemoveLongIdentifiers($query)
+  {
+        $this->connection->removeFromCachedStatements($query);
+
+  	    // do not replace things in literals
+  	    $literals= array(); 
+        $replaceable = preg_split("/'.*?'/", $query);
+        
+        $lidx= 0;
+
+        // assume that a query cannot start with a literal and that 
+        foreach ($replaceable as $toescape)
+             $this->findAndRecordLongIdentifiers($toescape);
+
+        $this->resetLongIdentifiers();
+  }
+  
+  public function longIdentifierKey($key)
+  {
+  	 return $this->hashLongIdentifiers[strtoupper($key)];
+  }
+   
+}
 
 /**
  * @} End of "ingroup database".
