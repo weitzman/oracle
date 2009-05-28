@@ -41,6 +41,47 @@ begin
    
 end trg_drop_sequences;");
   */    
+      update_sql("create or replace package drupal_timestamp
+as
+
+   function todate(p_timestamp number)
+   return date
+   deterministic;
+   
+   
+   function totimestamp(p_date date)
+   return number
+   deterministic;   
+      
+end;");
+
+      update_sql("create or replace package body drupal_timestamp
+as
+
+  PHP_BASE_TIME   timestamp:= (from_tz(to_timestamp('01011970000000','DDMMYYYYHH24MISS'), '+00:00') at time zone '+00:00');
+  PHP_BASE_DATE   date:= to_date(to_char(PHP_BASE_TIME at time zone '00:00','DDMMYYYYHH24MISS'),'DDMMYYYYHH24MISS') at time zone '00:00';
+
+
+   function todate(p_timestamp number)
+   return date
+   deterministic
+   as
+   begin
+     return ((PHP_BASE_TIME at time zone '+00:00')+p_timestamp/86400) at time zone '+00:00';
+   end;
+   
+   
+   function totimestamp(p_date date)
+   return number
+   deterministic
+   as
+   begin
+     return round((p_date-PHP_BASE_DATE)*86400);
+   end;
+      
+end;");
+      
+      
       update_sql("create or replace package blobs_cleaner
 as
 
