@@ -692,7 +692,10 @@ class DatabaseLongIdentifierHandler_oracle
   
   public function removeLongIdentifiers($queryPart)
   {
-  	  return preg_replace($this->searchLongIdentifiers, $this->replaceLongIdentifiers, $queryPart);
+  	  if (count($this->searchLongIdentifiers))
+  	    return preg_replace($this->searchLongIdentifiers, $this->replaceLongIdentifiers, $queryPart);
+  	  else
+  	    return $queryPart;
   }
   
   // TODO: would be wonderfull to enble a memcached switch here
