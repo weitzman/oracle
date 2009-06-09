@@ -3,7 +3,8 @@ $Id
 HOW TO INSTALL ORACLE SUPPORT
 
 cd <path to drupal dir>
-tar xzvf <oracle.tar.gz>
+tar xzvf <oracle-7.x-*.tar.gz>
+mv oracle/* .
 
 
 TRY
