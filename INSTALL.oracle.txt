@@ -4,7 +4,7 @@ HOW TO INSTALL ORACLE SUPPORT
 
 cd <path to drupal dir>
 tar xzvf <oracle-7.x-*.tar.gz>
-mv oracle/* .
+cp -r oracle/* .
 
 
 TRY
