@@ -136,8 +136,11 @@ class DatabaseConnection_oracle extends DatabaseConnection
         if ($query instanceof PDOStatement) {
           $query_string = $stmt->queryString;
         }
-        else {
+        elseif (isset($stmt)) {
           $query_string = $stmt->getQueryString();
+        }
+        else {
+          $query_string = $query; 	
         }
         
         syslog(LOG_ERR,"error query: ". $query_string ." e: ".$e->getMessage()." args: ".print_r($args,true));
@@ -310,7 +313,7 @@ class DatabaseConnection_oracle extends DatabaseConnection
   private function escapeEmptyLiteral($match)
   {
 	 if ($match[0]=="''") 
-	   return "'".ORACLE_EMPTY_STRING_REPLACE."'";
+	   return "'".ORACLE_EMPTY_STRING_REPLACER."'";
 	 else
 	   return $match[0];
   }

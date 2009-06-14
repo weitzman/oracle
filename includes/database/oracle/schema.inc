@@ -50,7 +50,7 @@ class DatabaseSchema_oracle extends DatabaseSchema {
   }
   
   public function getTableInfo($table) {
-      $schema= $this->tableSchema($this->connection->prefixTables('{' . $table . '}'));
+      $schema= $this->tableSchema($this->connection->prefixTables('{' . strtoupper($table) . '}'));
       
   	  if (!isset(DatabaseSchema_oracle::$tableInformation[$schema."|".$table]))
   	  {  	  	
@@ -69,7 +69,7 @@ class DatabaseSchema_oracle extends DatabaseSchema {
   }
   
   public function removeTableInfoCache($table) {
-      $schema= $this->tableSchema($this->connection->prefixTables('{' . $table . '}'));
+      $schema= $this->tableSchema($this->connection->prefixTables('{' . strtoupper($table) . '}'));
   	  unset(DatabaseSchema_oracle::$tableInformation[$schema."|".$table]);
   }
   
@@ -94,7 +94,7 @@ class DatabaseSchema_oracle extends DatabaseSchema {
    * )
    */
   public function rebuildDefaultsTrigger(&$ret,$table) {
-  	 $schema= $this->tableSchema($this->connection->prefixTables('{' . $table . '}'));
+  	 $schema= $this->tableSchema($this->connection->prefixTables('{' . strtoupper($table) . '}'));
   	 $oname= $this->oid($table,false,false);
   	 
   	 $trigger= 'create or replace trigger '.$this->oid('TRG_'.$table.'_DEFS',true).'
@@ -372,7 +372,7 @@ class DatabaseSchema_oracle extends DatabaseSchema {
   
   private function getTableSerialInfo($table)
   {
-  	  $schema= $this->tableSchema($this->connection->prefixTables('{' . $table . '}'));
+  	  $schema= $this->tableSchema($this->connection->prefixTables('{' . strtoupper($table) . '}'));
   	  return db_query("select * from table(identifier.get_serial(?, ?))",array(strtoupper($table),$schema))->fetchObject();
   }
   
@@ -801,7 +801,7 @@ class DatabaseSchema_oracle extends DatabaseSchema {
    * Retrieve a table or column comment.
    */
   public function getComment($table, $column = NULL) {
-  	$schema= $this->tableSchema($this->connection->prefixTables('{' . $table . '}'));
+  	$schema= $this->tableSchema($this->connection->prefixTables('{' . strtoupper($table) . '}'));
   	
   	syslog(LOG_ERR,"qp: ".print_r(array($this->oid($column,false,false), $this->oid($table,false,false), $schema),true)); 
   	if ($schema)
@@ -833,7 +833,7 @@ class DatabaseSchema_oracle extends DatabaseSchema {
   }
   
   public function tableExists($table) {
-  	$schema= $this->tableSchema($this->connection->prefixTables('{' . $table . '}'));
+  	$schema= $this->tableSchema($this->connection->prefixTables('{' . strtoupper($table) . '}'));
   	
   	if ($schema)
   	  return db_query("SELECT 1 FROM all_tables WHERE temporary= 'N' and table_name = ? and owner= ?",array($this->oid($table,false,false),$schema))->fetchField();
@@ -842,7 +842,7 @@ class DatabaseSchema_oracle extends DatabaseSchema {
   }
   
   public function columnExists($table, $column) {
-  	$schema= $this->tableSchema($this->connection->prefixTables('{' . $table . '}'));
+  	$schema= $this->tableSchema($this->connection->prefixTables('{' . strtoupper($table) . '}'));
   	
   	if ($schema)
   	  return db_query("SELECT 1 FROM all_tab_columns WHERE column_name = ? and table_name = ? and owner= ?",array($this->oid($column,false,false),$this->oid($table,false,false),$schema))->fetchField();
