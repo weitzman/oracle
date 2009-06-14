@@ -56,7 +56,7 @@ class DatabaseConnection_oracle extends DatabaseConnection
       $connection_options['port'] = 1521;
     
 
-    $dsn = 'oci:dbname=//' . $connection_options['host'] . ':' . $connection_options['port'].'/' . $connection_options['database'] . ';charset=UTF-8';
+    $dsn = 'oci:dbname=//' . $connection_options['host'] . ':' . $connection_options['port'].'/' . $connection_options['database'] . ';charset=AL32UTF8';
     parent::__construct($dsn, $connection_options['username'], $connection_options['password'], array(
 
       // Convert numeric values to strings when fetching.
