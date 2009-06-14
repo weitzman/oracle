@@ -77,11 +77,11 @@ class DatabaseSchema_oracle extends DatabaseSchema {
 
   	  ////syslog(LOG_ERR,"makeSequenceName: ".$table." field: ".$field);
   	
-  	  $sequence_name= $this->oid('SEQ_'.$table.'_'.$field,false);
+  	  $sequence_name= $this->oid('SEQ_'.$table.'_'.$field,false,false);
       
       ////syslog(LOG_ERR,"sequence_name: ".$sequence_name);
       
-      return $sequence_name;
+      return '"{'.$sequence_name.'}"';
   }
   
   /**

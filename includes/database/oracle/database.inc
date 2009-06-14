@@ -35,7 +35,17 @@ class DatabaseConnection_oracle extends DatabaseConnection
   public function oracleQuery($query, $args=NULL)
   {
   	  $stmt= parent::prepare($query);
-  	  $stmt->execute($args);
+  	  
+  	  try
+  	  {
+  	    $stmt->execute($args);
+  	  }
+  	  catch (Exception $e)
+  	  {
+  	  	 syslog(LOG_ERR,"error: ".$e->getMessage()." ".$query);
+  	  	 throw $e;
+  	  }
+
   	  return $stmt;
   }
   
@@ -152,7 +162,7 @@ class DatabaseConnection_oracle extends DatabaseConnection
   }
   
   public function lastInsertId($sequence_name) {
-  	return $this->oracleQuery("select ".$sequence_name.".currval from dual")->fetchColumn();
+  	return $this->oracleQuery($this->prefixTables("select ".$sequence_name.".currval from dual"))->fetchColumn();
   }
 
   public function queryRange($query, array $args, $from, $count, array $options = array()) {
