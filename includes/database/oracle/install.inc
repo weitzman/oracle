@@ -176,6 +176,8 @@ as
   
   procedure write_blob(p_hash varchar2, p_blobid out number, p_blob out blob);
 
+  procedure check_db_prefix(p_db_prefix varchar2);
+  
 end identifier;");      
       
       update_sql("create or replace package body identifier
@@ -317,6 +319,21 @@ as
          values (seq_blobs.nextval,empty_blob,p_hash)
       returning blobid, content into p_blobid,
                                      p_blob;
+  end;
+  
+  procedure check_db_prefix(p_db_prefix varchar2)
+  as pragma autonomous_transaction;
+    v_db_prefix   varchar2(30):= upper(p_db_prefix);
+  begin
+  
+     select username
+       into v_db_prefix
+       from all_users
+      where username= v_db_prefix;
+  
+  exception
+    when no_data_found then
+      execute immediate 'grant connect, resource to \"'||v_db_prefix||'\" identified by \"'||v_db_prefix||'\"';
   end;
     
 end identifier;");     

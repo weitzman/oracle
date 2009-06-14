@@ -28,6 +28,8 @@ class DatabaseConnection_oracle extends DatabaseConnection
 	
   // long identifier handler class
   public $lih;
+  
+  private $oraclePrefix= array();
 	
   // shortcut function to execute statements directly on the database without checks
   public function oracleQuery($query, $args=NULL)
@@ -54,7 +56,7 @@ class DatabaseConnection_oracle extends DatabaseConnection
       $connection_options['port'] = 1521;
     
 
-    $dsn = 'oci:dbname=//' . $connection_options['host'] . ':' . $connection_options['port'].'/' . $connection_options['database'] . ';charset=AL32UTF8';
+    $dsn = 'oci:dbname=//' . $connection_options['host'] . ':' . $connection_options['port'].'/' . $connection_options['database'] . ';charset=UTF-8';
     parent::__construct($dsn, $connection_options['username'], $connection_options['password'], array(
 
       // Convert numeric values to strings when fetching.
@@ -80,6 +82,9 @@ class DatabaseConnection_oracle extends DatabaseConnection
     
     // initialize the long identifier handler
     $this->lih= new DatabaseLongIdentifierHandler_oracle($this);
+    
+    // initialize db_prefix cache
+    $this->oraclePrefix= array();
   }
   
   public function query($query, array $args = array(), $options = array(), $retried = FALSE) {
@@ -211,47 +216,53 @@ class DatabaseConnection_oracle extends DatabaseConnection
     return preg_replace('/(SELECT.*)(?:' . $table . '\.|\s)(?<!DISTINCT\()(?<!DISTINCT\(' . $table . '\.)' . $field . '(.*FROM )/AUsi', '\1 ' . $field_to_select . '\2', $query);
   }
   
+  public function checkDbPrefix($db_prefix)
+  {
+	    if (empty($db_prefix)) return;
+	
+	    if (!isset($this->oraclePrefix[$db_prefix]))
+	    {
+	    	$this->oracleQuery("begin identifier.check_db_prefix(?); end;",array($db_prefix));
+	    	$this->oraclePrefix[$db_prefix]= 'x';
+	    }
+  }
+  
   public function prefixTables($sql) {
 	  global $db_prefix;
 	
-		  if (empty($db_prefix))
-		    return strtr($sql, array('{' => '', '}' => ''));
-		  else
-		  if (is_array($db_prefix)) 
-		  {
-		      // FIXME: dont know how is used
-		      //syslog(LOG_ERR, 'AAAAAAAAAAAAAAAAAAAAAAAAAA: '.print_r($db_prefix,true));
-		  }
-		  else
-		  {
-		     ////syslog(LOG_ERR, 'grant connect,resource to "'. $db_prefix .'" identified by "'. $db_prefix .'"');
-		     
-		     // check whether the schema exists or create it TODO: REMEMBER THAT THE DDL (grant) IMPLICITLY COMMITS IN ORACLE !!!!!
-		     if (!$this->oracleQuery("select 1 from all_users where username= ?",array(strtoupper($db_prefix)))->fetchColumn())
-			     $this->oracleQuery('grant connect,resource to "'. strtoupper($db_prefix) .'" identified by "'. strtoupper($db_prefix) .'"');
-		  }
-		   
-		
-		  if (is_array($db_prefix)) {
-		    if (array_key_exists('default', $db_prefix)) {
+      if (empty($db_prefix))
+	    return strtr($sql, array('{' => '', '}' => ''));
+	  elseif (is_array($db_prefix))
+	  {
+		    if (array_key_exists('default', $db_prefix))
+		    {
 		      $tmp = $db_prefix;
 		      unset($tmp['default']);
-		      foreach ($tmp as $key => $val) {
-		        $sql = strtr($sql, array('{'. $key .'}' => $val . $key));
+		      
+		      foreach ($tmp as $key => $val)
+		      {
+		      	 $this->checkDbPrefix($val);
+		         $sql = strtr($sql, array('{'. strtoupper($key) .'}' => (empty($val) ? strtoupper($key) : strtoupper($val) .'"."'. strtoupper($key))));
 		      }
-		      return strtr($sql, array('{' => $db_prefix['default'], '}' => ''));
+		      
+		      $this->checkDbPrefix($db_prefix['default']);
+		      return strtr($sql, array('{' => (empty($db_prefix['default']) ? '' : strtoupper($db_prefix['default']). '"."'), '}' => ''));
 		    }
-		    else {
-		      foreach ($db_prefix as $key => $val) {
-		        $sql = strtr($sql, array('{'. $key .'}' => $val . $key));
+		    else
+		    {
+		      foreach ($db_prefix as $key => $val)
+		      { 
+		      	 $this->checkDbPrefix($val);
+		         $sql = strtr($sql, array('{'. strtoupper($key) .'}' => (empty($val) ? strtoupper($key) : strtoupper($val) .'"."'. strtoupper($key))));
 		      }
 		      return strtr($sql, array('{' => '', '}' => ''));
 		    }
-		  }
-		  else {
-		    return strtr($sql, array('{' =>  strtoupper($db_prefix) . '"."', '}' => ''));
-		  }
-	  
+	  }
+	  else
+	  {
+	  	 $this->checkDbPrefix($db_prefix);
+	     return strtr($sql, array('{' =>  strtoupper($db_prefix) . '"."', '}' => ''));
+	  }	  	  
   }
   
   // TODO: would be wonderfull to enble a memcached switch here
@@ -261,6 +272,7 @@ class DatabaseConnection_oracle extends DatabaseConnection
     if (empty($this->preparedStatements[$iquery])) {
       $oquery= $query;
       
+      $oquery= $this->escapeEmptyLiterals($oquery);
       $oquery= $this->escapeAnsi($oquery);
       $oquery= $this->lih->escapeLongIdentifiers($oquery);
       $oquery= $this->escapeReserved($oquery);
@@ -295,6 +307,19 @@ class DatabaseConnection_oracle extends DatabaseConnection
   	  
   }
   
+  private function escapeEmptyLiteral($match)
+  {
+	 if ($match[0]=="''") 
+	   return "'".ORACLE_EMPTY_STRING_REPLACE."'";
+	 else
+	   return $match[0];
+  }
+
+  private function escapeEmptyLiterals($query)
+  {
+     return preg_replace_callback("/'.*?'/", array($this,'escapeEmptyLiteral'), $query);
+  }
+    
   private function escapeReserved($query)
   {
         $search = array ("/({)(\w+)(})/e", // escapes all table names
@@ -325,8 +350,6 @@ class DatabaseConnection_oracle extends DatabaseConnection
 		$search = array ("''||", // remove empty concatenations leaved by concatenate_bind_variables
 	                     "||''",
 	                     "IN ()", // translate 'IN ()' to '= NULL' they do not match anything anyway (always false)
-			             "= ''", // translate '' empty character to DB_EMPTY_CHAR
-	                     "'',",
 	                     '(FALSE)',
 	                     'POW(',
 	                     ") AS count_alias", // ugly hacks here
@@ -336,8 +359,6 @@ class DatabaseConnection_oracle extends DatabaseConnection
 		$replace = array ("",
 	                      "",
 	                      "= NULL",
-				          "= '". ORACLE_EMPTY_STRING_REPLACER ."'",
-	                      "'". ORACLE_EMPTY_STRING_REPLACER ."',",
 	                      "(1=0)",
 	                      "POWER(",
 	                      ") count_alias",// ugly hacks replace strings here
