@@ -14,7 +14,7 @@ grant connect,resource to drupal identified by drupal;
 or 
 if yo want to use the db_prefix
 
-grant connect, resource, dba, create any trigger, drop any table, SELECT ANY table, SELECT ANY sequence to drupal7 identified by drupal7 with admin option;
+grant connect, resource, dba, create user, create any trigger, drop any table, SELECT ANY table, SELECT ANY sequence to drupal7 identified by drupal7 with admin option;
 (TODO: those privilege are actually relaxed and should be better defined in the future)
 
 

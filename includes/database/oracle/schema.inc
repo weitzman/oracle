@@ -207,7 +207,7 @@ class DatabaseSchema_oracle extends DatabaseSchema {
 
     if (isset($table['indexes']) && is_array($table['indexes'])) 
       foreach ($table['indexes'] as $key_name => $key) 
-        $statements[] = $this->_createIndexSql($name, $key_name, $key);
+        $statements= array_merge($statements,$this->_createIndexSql($name, $key_name, $key));
     
     // Add table comment.
     if (isset($table['description'])&&$this->prepareComment($table['description'])) 
@@ -639,7 +639,54 @@ class DatabaseSchema_oracle extends DatabaseSchema {
    *   An array of field names.
    */
   public function addIndex(&$ret, $table, $name, $fields) {
-    $ret[] = update_sql($this->_createIndexSql($table, $name, $fields));
+  	$sql= $this->_createIndexSql($table, $name, $fields);
+  	
+  	foreach ($sql as $stmt)
+       $ret[] = update_sql($stmt);
+       
+  }
+  
+  public function _dropIndexByColsSql($table, $fields)
+  {
+  	$schema= $this->tableSchema($this->connection->prefixTables('{' . strtoupper($table) . '}'));
+  	
+  	$stmt= $this->connection->oracleQuery("select i.index_name,
+											      e.column_expression exp,
+											      i.column_name col
+											 from all_ind_columns i, 
+											      all_ind_expressions e
+											where i.column_position= e.column_position (+)
+											  and i.index_owner = e.index_owner (+) 
+											  and i.table_name = e.table_name (+)
+											  and i.index_name = e.index_name (+)
+											  and i.table_name = ?
+											  and i.index_owner = ?",array(strtoupper($table),$schema));
+  	$idx= array();
+  	
+  	while ($row=$stmt->fetchObject())
+  	{
+	  	  if (!isset($idx[$row->index_name]))
+	  	     $idx[$row->index_name]= array(); 
+	  	     
+		  $idx[$row->index_name][]= ($row->exp ? $row->exp : $row->col);
+  	}
+  	 
+    $col = array();
+    
+    foreach ($fields as $field)
+      if (is_array($field)) 
+        $col[] = 'SUBSTR(' . $this->oid($field[0]) . ',1,' . $field[1] . ')';
+      else 
+        $col[] = $this->oid($field,false,false);
+      
+    //syslog(LOG_ERR,"----$schema---$table----".print_r($col,true));
+    //syslog(LOG_ERR,print_r($idx,true));
+    
+  	foreach ($idx as $name => $value)
+  	  if (!count(array_diff($value,$col)))
+  	    return 'DROP INDEX "'.strtoupper($schema).'"."'.strtoupper($name).'"';
+
+    return false;  	
   }
 
   /**
@@ -769,11 +816,20 @@ class DatabaseSchema_oracle extends DatabaseSchema {
 
   protected function _createIndexSql($table, $name, $fields) {
   	$oname= $this->oid('IDX_'.$table.'_'.$name,true);
+
+  	$sql= array();
   	
-    $query = 'CREATE INDEX '.$oname.' ON ' . $this->oid($table,true) . ' (';
-    $query .= $this->_createKeySql($fields) . ')';
+  	$ret = $this->_dropIndexByColsSql($table, $fields); // Oracle doesn't like multiple indexes on the same column list
+  	
+  	if ($ret) $sql[]= $ret;
+  	
+  	// Suppose we try to create two indexes in the same create table command we will silently fail the second
+    $query = "begin execute immediate 'CREATE INDEX ".$oname." ON " . $this->oid($table,true) . " (";
+    $query .= $this->_createKeySql($fields) . ")'; exception when others then if sqlcode = -1408 then null; else raise; end if; end;";
     
-    return $query;
+    $sql[]= $query;
+    
+    return $sql;
   }
 
   protected function _createKeys(&$ret, $table, $new_keys) {

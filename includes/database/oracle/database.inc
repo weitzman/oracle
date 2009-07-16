@@ -154,7 +154,14 @@ class DatabaseConnection_oracle extends DatabaseConnection
         }
         
         syslog(LOG_ERR,"error query: ". $query_string ." e: ".$e->getMessage()." args: ".print_r($args,true));
-        throw new PDOException($query_string . " - \n" . print_r($args,1) ." e: ".$e->getMessage());
+        
+        $ex= new PDOException($query_string . " - \n" . print_r($args,1) ." e: ".$e->getMessage());
+        $ex->errorInfo= $e->errorInfo;
+        
+        if ($ex->errorInfo[1]=='1')
+        	$ex->errorInfo[0]= '23000';
+        
+        throw $ex;
       }
       
       return NULL;
@@ -162,7 +169,12 @@ class DatabaseConnection_oracle extends DatabaseConnection
   }
   
   public function lastInsertId($sequence_name) {
-  	return $this->oracleQuery($this->prefixTables("select ".$sequence_name.".currval from dual"))->fetchColumn();
+  	try
+  	{
+  	  return $this->oracleQuery($this->prefixTables("select ".$sequence_name.".currval from dual"))->fetchColumn();
+  	}
+  	catch (Exception $ex)
+  	{ /* ignore if CURRVAL not set (may be an insert that specified the serial field) */  }
   }
 
   public function queryRange($query, array $args, $from, $count, array $options = array()) {
@@ -279,7 +291,8 @@ class DatabaseConnection_oracle extends DatabaseConnection
   }
   
   // TODO: would be wonderfull to enble a memcached switch here
-  protected function prepareQuery($query) {
+  public function prepareQuery($query)
+  {
     $iquery = md5($this->prefixTables($query));
     
     if (empty($this->preparedStatements[$iquery])) {
@@ -291,6 +304,8 @@ class DatabaseConnection_oracle extends DatabaseConnection
       $oquery= $this->escapeReserved($oquery);
       $oquery= $this->escapeCompatibility($oquery);
       $oquery= $this->prefixTables($oquery);
+      $oquery= $this->escapeIfFunction($oquery);
+      
       
       //syslog(LOG_ERR,"oquery: ".$oquery);
       $this->preparedStatements[$iquery] = $this->prepare($oquery);
@@ -309,6 +324,7 @@ class DatabaseConnection_oracle extends DatabaseConnection
   
   private function escapeAnsi($query)
   {
+  	
   	 if (preg_match("/^select /i",$query)&&!preg_match("/^select(.*)from/ims",$query))
   	  $query.= ' FROM DUAL';
 
@@ -333,19 +349,26 @@ class DatabaseConnection_oracle extends DatabaseConnection
      return preg_replace_callback("/'.*?'/", array($this,'escapeEmptyLiteral'), $query);
   }
     
+  private function escapeIfFunction($query)
+  {
+     return preg_replace("/IF\s*\((.*?),(.*?),(.*?)\)/", 'case when \1 then \2 else \3 end', $query);
+  }
+  
   private function escapeReserved($query)
   {
         $search = array ("/({)(\w+)(})/e", // escapes all table names
                          "/({L#)([0-9]+)(})/e", // escapes long id
 		                 "/([\:])(uid|session|file|access|mode|comment)/e",
 			   	         "/(<uid>|<session>|<file>|<access>|<mode>|<comment>)/e",
-			   	         "/([\(\.\s,])(uid|session|file|access|mode|comment)([,\s\=)])/e");
+			   	         '/([\(\.\s,])(uid|session|file|access|mode|comment)([,\s\=)])/e',
+                         '/([\(\.\s,])(uid|session|file|access|mode|comment)$/e');
 
 	    $replace = array ("'\"\\1'.strtoupper('\\2').'\\3\"'",
 				          "'\"\\1'.strtoupper('\\2').'\\3\"'",
 				          "'\\1'.'db_'.'\\2'.'\\3'",
 					      "strtoupper('\"\\1\"')",
-					      "'\\1'.strtoupper('\"\\2\"').'\\3'");
+					      "'\\1'.strtoupper('\"\\2\"').'\\3'",
+	                      "'\\1'.strtoupper('\"\\2\"')");
 
         return preg_replace($search, $replace, $query);  	
   }
@@ -366,8 +389,8 @@ class DatabaseConnection_oracle extends DatabaseConnection
 	                     '(FALSE)',
 	                     'POW(',
 	                     ") AS count_alias", // ugly hacks here
-	                     'ON (nid) * FROM "{NODE}"',
-		                 'status &');
+		                 'status &',
+		                 '"{URL_ALIAS}" GROUP BY path');
 	
 		$replace = array ("",
 	                      "",
@@ -375,8 +398,8 @@ class DatabaseConnection_oracle extends DatabaseConnection
 	                      "(1=0)",
 	                      "POWER(",
 	                      ") count_alias",// ugly hacks replace strings here
-	                      'x.* FROM "{NODE}" x',
-		                  'status= 1 and');
+		                  'status= 1 and',
+		                  '"{URL_ALIAS}" GROUP BY SUBSTRING_INDEX(src, \'/\', 1)');
 	  	
 		return str_replace($search, $replace, $query);
   }
@@ -738,7 +761,7 @@ class DatabaseLongIdentifierHandler_oracle
   	
     try
     {
-		    $result= $this->connection->oracleQuery("select id, identifier from long_identifiers where substr(identifier,1,3) not in ('IDX','TRG','PK_','UK_')");
+		    $result= $this->connection->oracleQuery("select id, identifier from long_identifiers where substr(identifier,1,3) not in ('IDX','TRG','PK_','UK_') order by length(identifier) desc");
 		    
 		    while ($row= $result->fetchObject())
 		    {
