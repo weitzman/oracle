@@ -98,7 +98,7 @@ class DatabaseConnection_oracle extends DatabaseConnection
   }
   
   public function query($query, array $args = array(), $options = array(), $retried = 0) {
-
+    
 	// Use default values if not already set.
     $options += $this->defaultOptions();
 
@@ -115,8 +115,6 @@ class DatabaseConnection_oracle extends DatabaseConnection
         $stmt->execute($this->cleanupArgs($args), $options);
       }
       
-      //syslog(LOG_ERR,"options: ".print_r($options,true));
-
       switch ($options['return']) {
         case Database::RETURN_STATEMENT:
           return $stmt;
@@ -149,7 +147,6 @@ class DatabaseConnection_oracle extends DatabaseConnection
           return $this->query($query_string, $args, $options, 2);
       }
 
-      syslog(LOG_ERR,"rollback");
       try { $this->rollBack(); } catch (Exception $ex) { syslog(LOG_ERR,"rollback ex: ".$ex->getMessage()); }
       
       _db_check_install_needed();
@@ -308,25 +305,30 @@ class DatabaseConnection_oracle extends DatabaseConnection
   // TODO: would be wonderfull to enble a memcached switch here
   public function prepareQuery($query)
   {
-    $iquery = md5($this->prefixTables($query));
-    
-    if (empty($this->preparedStatements[$iquery])) {
-      $oquery= $query;
-      
-      $oquery= $this->escapeEmptyLiterals($oquery);
-      $oquery= $this->escapeAnsi($oquery);
-      $oquery= $this->lih->escapeLongIdentifiers($oquery);
-      $oquery= $this->escapeReserved($oquery);
-      $oquery= $this->escapeCompatibility($oquery);
-      $oquery= $this->prefixTables($oquery);
-      $oquery= $this->escapeIfFunction($oquery);
-      
-      
-      //syslog(LOG_ERR,"oquery: ".$oquery);
-      $this->preparedStatements[$iquery] = $this->prepare($oquery);
-    }
-    
-    return $this->preparedStatements[$iquery];
+  	    global $oracle_debug;
+  	    
+	    $iquery = md5($this->prefixTables($query));
+	    
+	    if (empty($this->preparedStatements[$iquery]))
+	    {
+	      $oquery= $query;
+	      
+	      $oquery= $this->escapeEmptyLiterals($oquery);
+	      $oquery= $this->escapeAnsi($oquery);
+	      $oquery= $this->lih->escapeLongIdentifiers($oquery);
+	      $oquery= $this->escapeReserved($oquery);
+	      $oquery= $this->escapeCompatibility($oquery);
+	      $oquery= $this->prefixTables($oquery);
+	      $oquery= $this->escapeIfFunction($oquery);
+	      
+	      
+	      //syslog(LOG_ERR,"oquery: ".$oquery);
+	      $this->preparedStatements[$iquery] = $this->prepare($oquery);
+	    }
+	    
+	    if ($oracle_debug) syslog(LOG_ERR,"query: ".$query." prepared: ".$this->preparedStatements[$iquery]);
+	    
+	    return $this->preparedStatements[$iquery];
   }
 
   public function prepare($query, $options = array()) {
@@ -343,9 +345,12 @@ class DatabaseConnection_oracle extends DatabaseConnection
   	 if (preg_match("/^select /i",$query)&&!preg_match("/^select(.*)from/ims",$query))
   	  $query.= ' FROM DUAL';
 
-     $search = array ('/("\w+?")/e');
+     $search = array ('/("\w+?")/e',
+                      "/([\s\(]+)('.+?'|[^\s]+)(\s+)LIKE(\s+)('.+?'|[^\s\)]+)/" // make like operator case insensitive
+                     );
 
-     $replace = array ("strtoupper('\\1')");
+     $replace = array ("strtoupper('\\1')",
+                       "\\1UPPER(\\2) LIKE UPPER(\\5)");
 
      return str_replace('\\"','"',preg_replace($search, $replace, $query));  	
   	  
