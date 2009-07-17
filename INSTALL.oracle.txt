@@ -2,10 +2,8 @@ $Id
 
 HOW TO INSTALL ORACLE SUPPORT
 
-cd <path to drupal dir>
+cd <path to drupal dir>/includes/database/
 tar xzvf <oracle-7.x-*.tar.gz>
-cp -r oracle/* .
-
 
 TRY
 

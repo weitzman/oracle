@@ -97,7 +97,7 @@ class DatabaseConnection_oracle extends DatabaseConnection
     $this->oraclePrefix= array();
   }
   
-  public function query($query, array $args = array(), $options = array(), $retried = FALSE) {
+  public function query($query, array $args = array(), $options = array(), $retried = 0) {
 
 	// Use default values if not already set.
     $options += $this->defaultOptions();
@@ -131,29 +131,32 @@ class DatabaseConnection_oracle extends DatabaseConnection
           throw new PDOException('Invalid return directive: ' . $options['return']);
       }
     }
-    catch (PDOException $e) {
-      
-      if (isset($e->errorInfo)&&is_array($e->errorInfo)&&$e->errorInfo[1]=='00972'&&!$retried) // catch long identifier errors for alias columns
+    catch (PDOException $e)
+    {
+        if ($query instanceof PDOStatement) 
+          $query_string = $stmt->queryString;
+        else 
+          $query_string = $query; 	
+        
+    	
+        
+      if ($this->exceptionQuery($query_string)&&$retried!=1)
+  	  	 return $this->query($query_string, $args, $options, 1);
+  	  	 
+      if (isset($e->errorInfo)&&is_array($e->errorInfo)&&$e->errorInfo[1]=='00972'&&$retried!=2) // catch long identifier errors for alias columns
       {
-          $this->lih->findAndRemoveLongIdentifiers($query);
-          return $this->query($query, $args, $options, TRUE);
+          $this->lih->findAndRemoveLongIdentifiers($query_string);
+          return $this->query($query_string, $args, $options, 2);
       }
-         
-      try { $this->rollBack(); } catch (Exception $ex) {}
+
+      syslog(LOG_ERR,"rollback");
+      try { $this->rollBack(); } catch (Exception $ex) { syslog(LOG_ERR,"rollback ex: ".$ex->getMessage()); }
       
       _db_check_install_needed();
-      if ($options['throw_exception']) {
-        if ($query instanceof PDOStatement) {
-          $query_string = $stmt->queryString;
-        }
-        elseif (isset($stmt)) {
-          $query_string = $stmt->getQueryString();
-        }
-        else {
-          $query_string = $query; 	
-        }
-        
-        syslog(LOG_ERR,"error query: ". $query_string ." e: ".$e->getMessage()." args: ".print_r($args,true));
+
+      if ($options['throw_exception'])
+      {
+        syslog(LOG_ERR,"error query: ". $query_string .(isset($stmt)&&$stmt instanceof DatabaseStatement_oracle ? " (prepared: ".$stmt->getQueryString()." )" : "")." e: ".$e->getMessage()." args: ".print_r($args,true));
         
         $ex= new PDOException($query_string . " - \n" . print_r($args,1) ." e: ".$e->getMessage());
         $ex->errorInfo= $e->errorInfo;
@@ -166,6 +169,18 @@ class DatabaseConnection_oracle extends DatabaseConnection
       
       return NULL;
     }
+  }
+  
+  private function exceptionQuery(&$unformattedQuery)
+  {
+	global $oracle_exception_queries;
+	
+	if (!is_array($oracle_exception_queries)) return false;
+	
+    $count= 0;	
+	$oracle_unformatted_query= preg_replace(array_keys($oracle_exception_queries),array_values($oracle_exception_queries),$oracle_unformatted_query,-1,$count);
+	
+	return $count;
   }
   
   public function lastInsertId($sequence_name) {
