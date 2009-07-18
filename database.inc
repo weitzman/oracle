@@ -183,7 +183,7 @@ class DatabaseConnection_oracle extends DatabaseConnection
   public function lastInsertId($sequence_name) {
   	try
   	{
-  	  return $this->oracleQuery($this->prefixTables("select ".$sequence_name.".currval from dual"))->fetchColumn();
+  	  return $this->oracleQuery($this->prefixTables("select ".$sequence_name.".currval from dual",true))->fetchColumn();
   	}
   	catch (Exception $ex)
   	{ /* ignore if CURRVAL not set (may be an insert that specified the serial field) */  }
@@ -256,16 +256,21 @@ class DatabaseConnection_oracle extends DatabaseConnection
   public function checkDbPrefix($db_prefix)
   {
 	    if (empty($db_prefix)) return;
-	
+	    
 	    if (!isset($this->oraclePrefix[$db_prefix]))
 	    	$this->oraclePrefix[$db_prefix]= $this->oracleQuery("select identifier.check_db_prefix(?) from dual",array($db_prefix))->fetchColumn();
 	    
 	    return $this->oraclePrefix[$db_prefix];
   }
   
-  public function prefixTables($sql) {
+  public function prefixTables($sql,$quoted=FALSE) {
 	  global $db_prefix;
-	
+
+	  $quote= '';
+	  
+	  if (!$quoted)
+	    $quote= '"';
+	  
       if (empty($db_prefix))
 	    return strtr($sql, array('{' => '', '}' => ''));
 	  elseif (is_array($db_prefix))
@@ -278,18 +283,18 @@ class DatabaseConnection_oracle extends DatabaseConnection
 		      foreach ($tmp as $key => $val)
 		      {
 		      	 $dp= $this->checkDbPrefix($val);
-		         $sql = strtr($sql, array('{'. strtoupper($key) .'}' => (empty($dp) ? strtoupper($key) : strtoupper($dp) .'"."'. strtoupper($key))));
+		         $sql = strtr($sql, array('{'. strtoupper($key) .'}' => $quote.(empty($dp) ? strtoupper($key) : strtoupper($dp) .'"."'. strtoupper($key)).$quote ));
 		      }
 		      
 		      $dp= $this->checkDbPrefix($db_prefix['default']);
-		      return strtr($sql, array('{' => (empty($dp) ? '' : strtoupper($dp). '"."'), '}' => ''));
+		      return strtr($sql, array('{' => $quote.(empty($dp) ? '' : strtoupper($dp). '"."'), '}' => $quote));
 		    }
 		    else
 		    {
 		      foreach ($db_prefix as $key => $val)
 		      { 
 		      	 $dp= $this->checkDbPrefix($val);
-		         $sql = strtr($sql, array('{'. strtoupper($key) .'}' => (empty($dp) ? strtoupper($key) : strtoupper($dp) .'"."'. strtoupper($key))));
+		         $sql = strtr($sql, array('{'. strtoupper($key) .'}' => $quote.(empty($dp) ? strtoupper($key) : strtoupper($dp) .'"."'. strtoupper($key)).$quote ));
 		      }
 		      return strtr($sql, array('{' => '', '}' => ''));
 		    }
@@ -297,7 +302,7 @@ class DatabaseConnection_oracle extends DatabaseConnection
 	  else
 	  {
 	  	 $dp= $this->checkDbPrefix($db_prefix);
-	     return strtr($sql, array('{' =>  strtoupper($dp) . '"."', '}' => ''));
+	     return strtr($sql, array('{' =>  $quote.strtoupper($dp) . '"."', '}' => $quote));
 	  }	  	  
   }
   
@@ -306,7 +311,7 @@ class DatabaseConnection_oracle extends DatabaseConnection
   {
   	    global $oracle_debug;
   	    
-	    $iquery = md5($this->prefixTables($query));
+	    $iquery = md5($this->prefixTables($query,true));
 	    
 	    if (empty($this->preparedStatements[$iquery]))
 	    {
@@ -317,7 +322,7 @@ class DatabaseConnection_oracle extends DatabaseConnection
 	      $oquery= $this->lih->escapeLongIdentifiers($oquery);
 	      $oquery= $this->escapeReserved($oquery);
 	      $oquery= $this->escapeCompatibility($oquery);
-	      $oquery= $this->prefixTables($oquery);
+	      $oquery= $this->prefixTables($oquery,true);
 	      $oquery= $this->escapeIfFunction($oquery);
 	      
 	      
@@ -395,7 +400,7 @@ class DatabaseConnection_oracle extends DatabaseConnection
   
   public function removeFromCachedStatements($query)
   {
-  	   $iquery = md5($this->prefixTables($query));
+  	   $iquery = md5($this->prefixTables($query,true));
        if (isset($this->preparedStatements[$iquery])) 
          unset($this->preparedStatements[$iquery]);
   }
