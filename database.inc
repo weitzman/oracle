@@ -155,7 +155,7 @@ class DatabaseConnection_oracle extends DatabaseConnection
       {
         syslog(LOG_ERR,"error query: ". $query_string .(isset($stmt)&&$stmt instanceof DatabaseStatement_oracle ? " (prepared: ".$stmt->getQueryString()." )" : "")." e: ".$e->getMessage()." args: ".print_r($args,true));
         
-        $ex= new PDOException($query_string . " - \n" . print_r($args,1) ." e: ".$e->getMessage());
+        $ex= new PDOException($query_string .(isset($stmt)&&$stmt instanceof DatabaseStatement_oracle ? " (prepared: ".$stmt->getQueryString()." )" : "")." e: ".$e->getMessage()." args: ".print_r($args,true));
         $ex->errorInfo= $e->errorInfo;
         
         if ($ex->errorInfo[1]=='1')
@@ -258,10 +258,9 @@ class DatabaseConnection_oracle extends DatabaseConnection
 	    if (empty($db_prefix)) return;
 	
 	    if (!isset($this->oraclePrefix[$db_prefix]))
-	    {
-	    	$this->oracleQuery("begin identifier.check_db_prefix(?); end;",array($db_prefix));
-	    	$this->oraclePrefix[$db_prefix]= 'x';
-	    }
+	    	$this->oraclePrefix[$db_prefix]= $this->oracleQuery("select identifier.check_db_prefix(?) from dual",array($db_prefix))->fetchColumn();
+	    
+	    return $this->oraclePrefix[$db_prefix];
   }
   
   public function prefixTables($sql) {
@@ -278,27 +277,27 @@ class DatabaseConnection_oracle extends DatabaseConnection
 		      
 		      foreach ($tmp as $key => $val)
 		      {
-		      	 $this->checkDbPrefix($val);
-		         $sql = strtr($sql, array('{'. strtoupper($key) .'}' => (empty($val) ? strtoupper($key) : strtoupper($val) .'"."'. strtoupper($key))));
+		      	 $dp= $this->checkDbPrefix($val);
+		         $sql = strtr($sql, array('{'. strtoupper($key) .'}' => (empty($dp) ? strtoupper($key) : strtoupper($dp) .'"."'. strtoupper($key))));
 		      }
 		      
-		      $this->checkDbPrefix($db_prefix['default']);
-		      return strtr($sql, array('{' => (empty($db_prefix['default']) ? '' : strtoupper($db_prefix['default']). '"."'), '}' => ''));
+		      $dp= $this->checkDbPrefix($db_prefix['default']);
+		      return strtr($sql, array('{' => (empty($dp) ? '' : strtoupper($dp). '"."'), '}' => ''));
 		    }
 		    else
 		    {
 		      foreach ($db_prefix as $key => $val)
 		      { 
-		      	 $this->checkDbPrefix($val);
-		         $sql = strtr($sql, array('{'. strtoupper($key) .'}' => (empty($val) ? strtoupper($key) : strtoupper($val) .'"."'. strtoupper($key))));
+		      	 $dp= $this->checkDbPrefix($val);
+		         $sql = strtr($sql, array('{'. strtoupper($key) .'}' => (empty($dp) ? strtoupper($key) : strtoupper($dp) .'"."'. strtoupper($key))));
 		      }
 		      return strtr($sql, array('{' => '', '}' => ''));
 		    }
 	  }
 	  else
 	  {
-	  	 $this->checkDbPrefix($db_prefix);
-	     return strtr($sql, array('{' =>  strtoupper($db_prefix) . '"."', '}' => ''));
+	  	 $dp= $this->checkDbPrefix($db_prefix);
+	     return strtr($sql, array('{' =>  strtoupper($dp) . '"."', '}' => ''));
 	  }	  	  
   }
   
@@ -346,11 +345,11 @@ class DatabaseConnection_oracle extends DatabaseConnection
   	  $query.= ' FROM DUAL';
 
      $search = array ('/("\w+?")/e',
-                      "/([\s\(]+)('.+?'|[^\s]+)(\s+)LIKE(\s+)('.+?'|[^\s\)]+)/" // make like operator case insensitive
-                     );
+                      "/([\s\(]+)('.+?'|[^\s]+)(\s+)(NOT ){0,1}LIKE(\s+)('.+?'|[^\s\)]+)/" // make like operator case insensitive
+                      );
 
      $replace = array ("strtoupper('\\1')",
-                       "\\1UPPER(\\2) LIKE UPPER(\\5)");
+                       "\\1UPPER(\\2) \\4LIKE UPPER(\\6)");
 
      return str_replace('\\"','"',preg_replace($search, $replace, $query));  	
   	  
@@ -378,10 +377,10 @@ class DatabaseConnection_oracle extends DatabaseConnection
   {
         $search = array ("/({)(\w+)(})/e", // escapes all table names
                          "/({L#)([0-9]+)(})/e", // escapes long id
-		                 "/([\:])(uid|session|file|access|mode|comment)/e",
-			   	         "/(<uid>|<session>|<file>|<access>|<mode>|<comment>)/e",
-			   	         '/([\(\.\s,])(uid|session|file|access|mode|comment)([,\s\=)])/e',
-                         '/([\(\.\s,])(uid|session|file|access|mode|comment)$/e');
+		                 "/([\:])(uid|session|file|access|mode|comment|desc)/e",
+			   	         "/(<uid>|<session>|<file>|<access>|<mode>|<comment>|<desc>)/e",
+			   	         '/([\(\.\s,])(uid|session|file|access|mode|comment|desc)([,\s\=)])/e',
+                         '/([\(\.\s,])(uid|session|file|access|mode|comment|desc)$/e');
 
 	    $replace = array ("'\"\\1'.strtoupper('\\2').'\\3\"'",
 				          "'\"\\1'.strtoupper('\\2').'\\3\"'",

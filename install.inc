@@ -167,6 +167,9 @@ as
   function get_for(p_long_identifier varchar2)
   return varchar2;
   
+  function get_long_name(p_long_identifier_ph varchar2)
+  return varchar2;
+
   function sequence_for_table(p_table varchar2, p_schema varchar2)
   return varchar2;
 
@@ -176,8 +179,9 @@ as
   
   procedure write_blob(p_hash varchar2, p_blobid out number, p_blob out blob);
 
-  procedure check_db_prefix(p_db_prefix varchar2);
-  
+  function check_db_prefix(p_db_prefix varchar2)
+  return varchar2;
+    
 end identifier;");      
       
       update_sql("create or replace package body identifier
@@ -212,6 +216,27 @@ as
      
   end;
   
+  function get_long_name(p_long_identifier_ph varchar2)
+  return varchar2
+  as
+     v_id          number;
+     v_long_name   varchar2(255);
+  begin
+     v_id:= to_number(substr(p_long_identifier_ph,length(long_identifier_prefix)+1));
+    
+     select identifier
+       into v_long_name
+       from long_identifiers
+      where id= v_id;
+    
+     return v_long_name;
+  exception
+   when others then
+      return p_long_identifier_ph;
+  end;
+  
+  
+  
   function sequence_for_table(p_table varchar2, p_schema varchar2)
   return varchar2
   as
@@ -225,7 +250,8 @@ as
      select constraint_name
        into v_contraint_oname
        from all_constraints
-      where constraint_type= 'P'
+      where (constraint_name like 'PK_%' or constraint_name like long_identifier_prefix||'%')
+        and constraint_type= 'P'
         and table_name= v_table_oname
         and owner= v_schema;
         
@@ -284,8 +310,9 @@ as
        from (select regexp_substr(text,v_serial_re) text
                from all_source
               where text like '%/* serial('||v_table_oname||',%'
-                and type= 'TRIGGER' 
                 and line= 1 
+                and (name like 'TRG%' or name like long_identifier_prefix||'%')
+                and type= 'TRIGGER' 
                 and owner= v_schema) s;
 
      select last_number+1
@@ -321,19 +348,23 @@ as
                                      p_blob;
   end;
   
-  procedure check_db_prefix(p_db_prefix varchar2)
+  function check_db_prefix(p_db_prefix varchar2)
+  return varchar2
   as pragma autonomous_transaction;
-    v_db_prefix   varchar2(30):= upper(p_db_prefix);
+    v_db_prefix   varchar2(30):= upper(get_for(p_db_prefix));
   begin
   
      select username
        into v_db_prefix
        from all_users
       where username= v_db_prefix;
+      
+      return v_db_prefix;
   
   exception
     when no_data_found then
       execute immediate 'grant connect, resource to \"'||v_db_prefix||'\" identified by \"'||v_db_prefix||'\"';
+      return v_db_prefix;
   end;
     
 end identifier;");     
@@ -360,6 +391,13 @@ return number
 as
 begin
   return dbms_random.random;
+end;");
+
+      $this->failsafe_ddl("create or replace function md5(p_buff varchar2)
+return varchar2
+as
+begin
+  return lower(rawtohex(utl_raw.cast_to_raw(dbms_obfuscation_toolkit.md5(input_string => p_buff))));
 end;");
       
       $this->failsafe_ddl("create or replace function substring(p_s varchar2, p_start number, p_length number default null)

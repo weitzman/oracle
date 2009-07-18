@@ -105,13 +105,16 @@ class DatabaseSchema_oracle extends DatabaseSchema {
                     if inserting then       
                     ';
   	 
-  	 $stmt=   $this->connection->oracleQuery("select column_name,
+  	 $serial_oname= $this->connection->oracleQuery("select field_name from table(identifier.get_serial(?,?))",array($table,$schema))->fetchColumn();
+  	 $serial_oname= ($serial_oname ? $serial_oname : "^NNC^");
+  	 
+  	 $stmt=   $this->connection->oracleQuery("select /*+ALL_ROWS*/ column_name,
 					                                 data_default
 					                            from all_tab_columns
-					                           where column_name not in (select field_name from table(identifier.get_serial(?,?)))
+					                           where column_name != ?
 					                             and owner= nvl(user,?)
 					                             and table_name= ?
-					                             and data_default is not null",array($table,$schema,$schema,$oname));
+					                             and data_default is not null",array($serial_oname,$schema,$oname));
   	 
   	 $def= false;
   	 
@@ -659,6 +662,7 @@ class DatabaseSchema_oracle extends DatabaseSchema {
 											  and i.index_owner = e.index_owner (+) 
 											  and i.table_name = e.table_name (+)
 											  and i.index_name = e.index_name (+)
+											  and (i.index_name like 'IDX%' or i.index_name like '".ORACLE_LONG_IDENTIFIER_PREFIX."%')
 											  and i.table_name = ?
 											  and i.index_owner = ?",array(strtoupper($table),$schema));
   	$idx= array();
@@ -907,6 +911,6 @@ class DatabaseSchema_oracle extends DatabaseSchema {
   }
   
   public function findTables($table_expression) {
-  	  return db_query("SELECT lower(owner||table_name) FROM all_tables WHERE ( upper(owner||table_name) like ? or table_name  like ? )",array(strtoupper($table_expression),strtoupper($table_expression)))->fetchAllKeyed(0, 0);
+  	  return db_query("SELECT lower(identifier.get_long_name(owner)||table_name) FROM all_tables WHERE ( upper(identifier.get_long_name(owner)||table_name) like ? or table_name  like ? )",array(strtoupper($table_expression),strtoupper($table_expression)))->fetchAllKeyed(0, 0);
   }
 }
