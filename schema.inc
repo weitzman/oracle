@@ -863,7 +863,6 @@ class DatabaseSchema_oracle extends DatabaseSchema {
   public function getComment($table, $column = NULL) {
   	$schema= $this->tableSchema($this->connection->prefixTables('{' . strtoupper($table) . '}',true));
   	
-  	syslog(LOG_ERR,"qp: ".print_r(array($this->oid($column,false,false), $this->oid($table,false,false), $schema),true)); 
   	if ($schema)
   	{
 	  	if (isset($column)) {
@@ -911,6 +910,15 @@ class DatabaseSchema_oracle extends DatabaseSchema {
   }
   
   public function findTables($table_expression) {
-  	  return db_query("SELECT lower(identifier.get_long_name(owner)||table_name) FROM all_tables WHERE ( upper(identifier.get_long_name(owner)||table_name) like ? or table_name  like ? )",array(strtoupper($table_expression),strtoupper($table_expression)))->fetchAllKeyed(0, 0);
+//  	  syslog(LOG_ERR,"te: ".$table_expression);
+  	  $schema= $this->tableSchema($table_expression);
+  	  $table_expression= str_replace('"'.$schema.'"."','',$table_expression);
+  	  $table_expression= str_replace('"','',$table_expression);
+  //	  syslog(LOG_ERR,"te: ".$table_expression.' '.$schema);
+  	  
+      $res= db_query("SELECT '\"'||owner||'\".\"'||table_name||'\"' tab FROM all_tables WHERE owner= ? and table_name LIKE ?",array($schema,strtoupper($table_expression)))->fetchAllKeyed(0, 0);
+  	    
+  	//  syslog(LOG_ERR,"res: ".print_r($res,true));
+  	  return $res;
   }
 }

@@ -98,20 +98,20 @@ class DatabaseConnection_oracle extends DatabaseConnection
   }
   
   public function query($query, array $args = array(), $options = array(), $retried = 0) {
-    
+  	
 	// Use default values if not already set.
     $options += $this->defaultOptions();
 
     try {
       if ($query instanceof PDOStatement) {
+      	//syslog(LOG_ERR,"query: ".$query->queryString." args: ".print_r($args,true));
         $stmt = $query;
         $stmt->execute(NULL);
       }
       else {
-        //syslog(LOG_ERR,"query: ". $query." args: ".print_r($args,true)." ret ".$options['return']);
       	$modified = $this->expandArguments($query, $args);
         $stmt = $this->prepareQuery($query);
-        
+        //syslog(LOG_ERR,"query: ".$stmt->getQueryString()." args: ".print_r($args,true));
         $stmt->execute($this->cleanupArgs($args), $options);
       }
       
@@ -137,7 +137,6 @@ class DatabaseConnection_oracle extends DatabaseConnection
           $query_string = $query; 	
         
     	
-        
       if ($this->exceptionQuery($query_string)&&$retried!=1)
   	  	 return $this->query($query_string, $args, $options, 1);
   	  	 
@@ -147,7 +146,7 @@ class DatabaseConnection_oracle extends DatabaseConnection
           return $this->query($query_string, $args, $options, 2);
       }
 
-      try { $this->rollBack(); } catch (Exception $ex) { syslog(LOG_ERR,"rollback ex: ".$ex->getMessage()); }
+      try { $this->rollBack(); } catch (Exception $rex) { syslog(LOG_ERR,"rollback ex: ".$rex->getMessage()); }
       
       _db_check_install_needed();
 
@@ -267,12 +266,13 @@ class DatabaseConnection_oracle extends DatabaseConnection
 	  global $db_prefix;
 
 	  $quote= '';
+	  $ret= '';
 	  
 	  if (!$quoted)
 	    $quote= '"';
 	  
       if (empty($db_prefix))
-	    return strtr($sql, array('{' => '', '}' => ''));
+	    $ret= strtr($sql, array('{' => '', '}' => ''));
 	  elseif (is_array($db_prefix))
 	  {
 		    if (array_key_exists('default', $db_prefix))
@@ -287,7 +287,7 @@ class DatabaseConnection_oracle extends DatabaseConnection
 		      }
 		      
 		      $dp= $this->checkDbPrefix($db_prefix['default']);
-		      return strtr($sql, array('{' => $quote.(empty($dp) ? '' : strtoupper($dp). '"."'), '}' => $quote));
+		      $ret= strtr($sql, array('{' => $quote.(empty($dp) ? '' : strtoupper($dp). '"."'), '}' => $quote));
 		    }
 		    else
 		    {
@@ -296,14 +296,16 @@ class DatabaseConnection_oracle extends DatabaseConnection
 		      	 $dp= $this->checkDbPrefix($val);
 		         $sql = strtr($sql, array('{'. strtoupper($key) .'}' => $quote.(empty($dp) ? strtoupper($key) : strtoupper($dp) .'"."'. strtoupper($key)).$quote ));
 		      }
-		      return strtr($sql, array('{' => '', '}' => ''));
+		      $ret= strtr($sql, array('{' => '', '}' => ''));
 		    }
 	  }
 	  else
 	  {
 	  	 $dp= $this->checkDbPrefix($db_prefix);
-	     return strtr($sql, array('{' =>  $quote.strtoupper($dp) . '"."', '}' => $quote));
-	  }	  	  
+	     $ret= strtr($sql, array('{' =>  $quote.strtoupper($dp) . '"."', '}' => $quote));
+	  }	  	
+
+	  return $this->escapeAnsi($ret);
   }
   
   // TODO: would be wonderfull to enble a memcached switch here
