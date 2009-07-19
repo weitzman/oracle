@@ -127,6 +127,9 @@ class UpdateQuery_oracle extends UpdateQuery {
     $max_placeholder = 0;
     $blobs = array();
     $blob_count = 0;
+    
+    // needed for BLOBS
+    $transaction = $this->connection->startTransaction();
 
     // Because we filter $fields the same way here and in __toString(), the
     // placeholders will all match up properly.
