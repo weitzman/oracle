@@ -352,11 +352,12 @@ class DatabaseConnection_oracle extends DatabaseConnection
   	  $query.= ' FROM DUAL';
 
      $search = array ('/("\w+?")/e',
-                      "/([\s\(]+)('.+?'|[^\s]+)(\s+)(NOT ){0,1}LIKE(\s+)('.+?'|[^\s\)]+)/" // make like operator case insensitive
-                      );
+                      "/([\s\(]+)('.+?'|[^\s]+)(\s+)(NOT ){0,1}LIKE(\s+)('.+?'|[^\s\)]+)/", // make like operator case insensitive
+                      "/([^\s\(]+) & ([^\s]+) = ([^\s\)]+)/"); // bitand
 
      $replace = array ("strtoupper('\\1')",
-                       "\\1UPPER(\\2) \\4LIKE UPPER(\\6)");
+                       "\\1UPPER(\\2) \\4LIKE UPPER(\\6)",
+                       "BITAND(\\1,\\2) = \\3");
 
      return str_replace('\\"','"',preg_replace($search, $replace, $query));  	
   	  
@@ -415,7 +416,6 @@ class DatabaseConnection_oracle extends DatabaseConnection
 	                     '(FALSE)',
 	                     'POW(',
 	                     ") AS count_alias", // ugly hacks here
-		                 'status &',
 		                 '"{URL_ALIAS}" GROUP BY path');
 	
 		$replace = array ("",
@@ -424,7 +424,6 @@ class DatabaseConnection_oracle extends DatabaseConnection
 	                      "(1=0)",
 	                      "POWER(",
 	                      ") count_alias",// ugly hacks replace strings here
-		                  'status= 1 and',
 		                  '"{URL_ALIAS}" GROUP BY SUBSTRING_INDEX(src, \'/\', 1)');
 	  	
 		return str_replace($search, $replace, $query);
