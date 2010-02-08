@@ -14,7 +14,7 @@ define('ORACLE_BLOB_PREFIX','B^#'); // prefix used for BLOB values
 define('ORACLE_MAX_VARCHAR2_LENGTH',4000); // maximum length for a string value in a table column in oracle 
 define('ORACLE_ROWNUM_ALIAS','RWN_TO_REMOVE'); // alias used for queryRange filtering (we have to remove that from resultsets)
 
-openlog("oracle", LOG_PID | LOG_PERROR, LOG_LOCAL0);
+openlog("oracle", LOG_PID | LOG_PERROR, LOG_USER);
 
 /**
  * @ingroup database
