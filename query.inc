@@ -15,24 +15,12 @@ class InsertQuery_oracle extends InsertQuery {
 
 
   public function execute() {
+    if (!$this->preExecute()) {
+      return NULL;
+    }
 
     $last_insert_id = 0;
 
-    // Confirm that the user did not try to specify an identical
-    //  field and default field.
-    if (array_intersect($this->insertFields, $this->defaultFields)) {
-      throw new PDOException('You may not specify the same field to have a value and a schema-default value.');
-    }
-
-    if (count($this->insertFields) + count($this->defaultFields) == 0 && empty($this->fromQuery)) {
-      return NULL;
-    }
-
-    // Don't execute query without values.
-    if (!isset($this->insertValues[0]) && count($this->insertFields) > 0 && empty($this->fromQuery)) {
-      return NULL;
-    }
-    
     $info= $this->connection->schema()->getTableInfo($this->table);
     //syslog(LOG_ERR,"table: ".$this->table." sequence_name: ".$info->sequence_name);
     
@@ -79,9 +67,15 @@ class InsertQuery_oracle extends InsertQuery {
   	// Default fields are always placed first for consistency.
     $insert_fields = array_merge($this->defaultFields, $this->insertFields);
     
-    if (!empty($this->fromQuery)) 
-      return "INSERT INTO {" . $this->table . '} (' . implode(', ', $insert_fields) . ') ' . $this->fromQuery;
-    
+    if (!empty($this->fromQuery))
+    { 
+      $cols= implode(', ', $insert_fields);
+      
+      if (!empty($cols))
+        return "INSERT INTO {" . $this->table . '} (' . $cols . ') ' . $this->fromQuery;
+      else
+        return "INSERT INTO {" . $this->table . '}  ' . $this->fromQuery;
+    }
 
     $query = "INSERT INTO {" . $this->table . '} (' . implode(', ', $insert_fields) . ') VALUES ';
 

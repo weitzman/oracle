@@ -93,7 +93,7 @@ class DatabaseSchema_oracle extends DatabaseSchema {
    * This condition happens on MySQL only inserting not updating  
    * )
    */
-  public function rebuildDefaultsTrigger(&$ret,$table) {
+  public function rebuildDefaultsTrigger($table) {
   	 $schema= $this->tableSchema($this->connection->prefixTables('{' . strtoupper($table) . '}',true));
   	 $oname= $this->oid($table,false,false);
   	 
@@ -136,12 +136,11 @@ class DatabaseSchema_oracle extends DatabaseSchema {
                  end;';
   	 
      $result = db_query($trigger);
-     $ret[] = array('success' => $result !== FALSE, 'query' => check_plain($trigger));
   }
   
-  public function createTable(&$ret, $name, $table) {
-  	 parent::createTable($ret,$name, $table);
-  	 $this->rebuildDefaultsTrigger($ret,$name);
+  public function createTable($name, $table) {
+  	 parent::createTable($name, $table);
+  	 $this->rebuildDefaultsTrigger($name);
   	 $this->resetLongIdentifiers();
   }
   
@@ -382,63 +381,57 @@ class DatabaseSchema_oracle extends DatabaseSchema {
   /**
    * Rename a table.
    *
-   * @param $ret
-   *   Array to which query results will be added.
    * @param $table
    *   The table to be renamed.
    * @param $new_name
    *   The new name for the table.
    */
-  public function renameTable(&$ret, $table, $new_name) {
+  public function renameTable($table, $new_name) {
   	$info= $this->getTableSerialInfo($table);
   	$oname= $this->oid($new_name,true);
   	
   	if (isset($info->sequence_name)&&$info->sequence_name)
   	{
-  	   $ret[] = update_sql('DROP TRIGGER {'.$info->trigger_name.'}');
-  	   $ret[] = update_sql('DROP SEQUENCE {'.$info->sequence_name.'}');
+  	   db_query('DROP TRIGGER {'.$info->trigger_name.'}');
+  	   db_query('DROP SEQUENCE {'.$info->sequence_name.'}');
   	}
   	
-  	$ret[] = update_sql("DROP TRIGGER ".$this->oid('TRG_'.$table.'_DEFS',true)); // drop defaults trigger
+  	db_query("DROP TRIGGER ".$this->oid('TRG_'.$table.'_DEFS',true)); // drop defaults trigger
   	
-    $ret[] = update_sql('ALTER TABLE ' . $this->oid($table,true) . ' RENAME TO ' . $this->oid($new_name,false) ); // should not use prefix because schema is not needed on rename
+    db_query('ALTER TABLE ' . $this->oid($table,true) . ' RENAME TO ' . $this->oid($new_name,false) ); // should not use prefix because schema is not needed on rename
     
   	if (isset($info->sequence_name)&&$info->sequence_name)
   	{
   	    $statements= $this->createSerialSql($table,$info->field_name,$info->sequence_restart);
   	    
   	    foreach ($statements as $statement)
-  	     $ret[] = update_sql($statement);
+  	     db_query($statement);
   	}
     
     $this->resetLongIdentifiers();
     $this->removeTableInfoCache($table);
-    $this->rebuildDefaultsTrigger($ret,$new_name);
+    $this->rebuildDefaultsTrigger($new_name);
   }
 
   /**
    * Drop a table.
    *
-   * @param $ret
-   *   Array to which query results will be added.
    * @param $table
    *   The table to be dropped.
    */
-  public function dropTable(&$ret, $table) {
+  public function dropTable($table) {
   	$info= $this->getTableInfo($table);
   	
   	if ($info->sequence_name)
-  	  $ret[] = update_sql('DROP SEQUENCE '.$info->sequence_name);
+  	  db_query('DROP SEQUENCE '.$info->sequence_name);
   	
-    $ret[] = update_sql('DROP TABLE ' . $this->oid($table,true) . ' CASCADE CONSTRAINTS');
+    db_query('DROP TABLE ' . $this->oid($table,true) . ' CASCADE CONSTRAINTS');
     $this->removeTableInfoCache($table);
   }
 
   /**
    * Add a new field to a table.
    *
-   * @param $ret
-   *   Array to which query results will be added.
    * @param $table
    *   Name of the table to be altered.
    * @param $field
@@ -457,7 +450,7 @@ class DatabaseSchema_oracle extends DatabaseSchema {
    *   or index including it in this array. @see db_change_field for more
    *   explanation why.
    */
-  public function addField(&$ret, $table, $field, $spec, $new_keys = array()) {
+  public function addField($table, $field, $spec, $new_keys = array()) {
     $fixnull = FALSE;
     
     if (!empty($spec['not null']) && !isset($spec['default'])) {
@@ -471,28 +464,26 @@ class DatabaseSchema_oracle extends DatabaseSchema {
     
     $query .= ')';
     
-    $ret[] = update_sql($query);
+    db_query($query);
     
     if (isset($spec['initial'])) {
-      // All this because update_sql does not support %-placeholders.
+      // All this because db_query does not support %-placeholders.
       $sql = 'UPDATE ' . $this->oid($table,true) . ' SET ' . $this->oid($field) . ' = ' . db_type_placeholder($spec['type']);
       $result = db_query($sql, $spec['initial']);
-      
-      $ret[] = array('success' => $result !== FALSE, 'query' => check_plain($sql . ' (' . $spec['initial'] . ')'));
       
     }
     
     if ($fixnull) {
-      $ret[] = update_sql("ALTER TABLE " . $this->oid($table,true) . " MODIFY (". $this->oid($field) ." NOT NULL)");
+      db_query("ALTER TABLE " . $this->oid($table,true) . " MODIFY (". $this->oid($field) ." NOT NULL)");
     }
     
     if (isset($new_keys)) {
-      $this->_createKeys($ret, $table, $new_keys);
+      $this->_createKeys($table, $new_keys);
     }
 
     // Add column comment.
     if (!empty($spec['description'])) {
-      $ret[] = update_sql('COMMENT ON COLUMN ' . $this->oid($table,true) . '.' . $this->oid($field) . ' IS ' . $this->prepareComment($spec['description']));
+      db_query('COMMENT ON COLUMN ' . $this->oid($table,true) . '.' . $this->oid($field) . ' IS ' . $this->prepareComment($spec['description']));
     }
     
     if ($spec['type'] == 'serial')
@@ -500,45 +491,41 @@ class DatabaseSchema_oracle extends DatabaseSchema {
 	    $statements= $this->createSerialSql($table,$field);
 	    	
   	    foreach ($statements as $statement)
-  	     $ret[] = update_sql($statement);	
+  	     db_query($statement);	
     }
 	    
     $this->resetLongIdentifiers();
     $this->removeTableInfoCache($table);
-    $this->rebuildDefaultsTrigger($ret,$table);
+    $this->rebuildDefaultsTrigger($table);
   }
 
   /**
    * Drop a field.
    *
-   * @param $ret
-   *   Array to which query results will be added.
    * @param $table
    *   The table to be altered.
    * @param $field
    *   The field to be dropped.
    */
-  public function dropField(&$ret, $table, $field) {
+  public function dropField($table, $field) {
   	
   	$info= $this->getTableSerialInfo($table);
   	
   	if (isset($info->sequence_name)&&$info->sequence_name&&$this->oid($field,false,false)==$info->field_name)
   	{
-  	   $ret[] = update_sql('DROP TRIGGER {'.$info->trigger_name.'}');
-  	   $ret[] = update_sql('DROP SEQUENCE {'.$info->sequence_name.'}');
+  	   db_query('DROP TRIGGER {'.$info->trigger_name.'}');
+  	   db_query('DROP SEQUENCE {'.$info->sequence_name.'}');
   	}
   	
-    $ret[] = update_sql('ALTER TABLE ' . $this->oid($table,true) . ' DROP COLUMN ' . $this->oid($field));
+    db_query('ALTER TABLE ' . $this->oid($table,true) . ' DROP COLUMN ' . $this->oid($field));
     $this->resetLongIdentifiers();
     $this->removeTableInfoCache($table);
-    $this->rebuildDefaultsTrigger($ret,$table);
+    $this->rebuildDefaultsTrigger($table);
   }
 
   /**
    * Set the default value for a field.
    *
-   * @param $ret
-   *   Array to which query results will be added.
    * @param $table
    *   The table to be altered.
    * @param $field
@@ -546,7 +533,7 @@ class DatabaseSchema_oracle extends DatabaseSchema {
    * @param $default
    *   Default value to be set. NULL for 'default NULL'.
    */
-  public function fieldSetDefault(&$ret, $table, $field, $default) {
+  public function fieldSetDefault($table, $field, $default) {
     if (is_null($default)) {
       $default = 'NULL';
     }
@@ -554,56 +541,48 @@ class DatabaseSchema_oracle extends DatabaseSchema {
       $default = is_string($default) ? $this->connection->quote($this->connection->cleanupArgValue($default)) : $default;
     }
 
-    $ret[] = update_sql('ALTER TABLE ' . $this->oid($table,true) . ' MODIFY (' . $this->oid($field) . ' DEFAULT ' . $default .' )');
-    $this->rebuildDefaultsTrigger($ret,$table);
+    db_query('ALTER TABLE ' . $this->oid($table,true) . ' MODIFY (' . $this->oid($field) . ' DEFAULT ' . $default .' )');
+    $this->rebuildDefaultsTrigger($table);
   }
 
   /**
    * Set a field to have no default value.
    *
-   * @param $ret
-   *   Array to which query results will be added.
    * @param $table
    *   The table to be altered.
    * @param $field
    *   The field to be altered.
    */
-  public function fieldSetNoDefault(&$ret, $table, $field) {
-    $ret[] = update_sql('ALTER TABLE ' . $this->oid($table,true) . ' MODIFY (' . $this->oid($field) . ' DEFAULT NULL)');
-    $this->rebuildDefaultsTrigger($ret,$table);
+  public function fieldSetNoDefault($table, $field) {
+    db_query('ALTER TABLE ' . $this->oid($table,true) . ' MODIFY (' . $this->oid($field) . ' DEFAULT NULL)');
+    $this->rebuildDefaultsTrigger($table);
   }
 
   /**
    * Add a primary key.
    *
-   * @param $ret
-   *   Array to which query results will be added.
    * @param $table
    *   The table to be altered.
    * @param $fields
    *   Fields for the primary key.
    */
-  public function addPrimaryKey(&$ret, $table, $fields) {
-    $ret[] = update_sql('ALTER TABLE ' . $this->oid($table,true) . ' ADD CONSTRAINT '.$this->oid('PK_'.$table).' PRIMARY KEY (' . $this->_createColsSql($fields) . ')');
+  public function addPrimaryKey($table, $fields) {
+    db_query('ALTER TABLE ' . $this->oid($table,true) . ' ADD CONSTRAINT '.$this->oid('PK_'.$table).' PRIMARY KEY (' . $this->_createColsSql($fields) . ')');
   }
 
   /**
    * Drop the primary key.
    *
-   * @param $ret
-   *   Array to which query results will be added.
    * @param $table
    *   The table to be altered.
    */
-  public function dropPrimaryKey(&$ret, $table) {
-    $ret[] = update_sql('ALTER TABLE ' . $this->oid($table,true) . ' DROP CONSTRAINT '.$this->oid('PK_'.$table));
+  public function dropPrimaryKey($table) {
+    db_query('ALTER TABLE ' . $this->oid($table,true) . ' DROP CONSTRAINT '.$this->oid('PK_'.$table));
   }
 
   /**
    * Add a unique key.
    *
-   * @param $ret
-   *   Array to which query results will be added.
    * @param $table
    *   The table to be altered.
    * @param $name
@@ -611,29 +590,25 @@ class DatabaseSchema_oracle extends DatabaseSchema {
    * @param $fields
    *   An array of field names.
    */
-  function addUniqueKey(&$ret, $table, $name, $fields) {
-    $ret[] = update_sql('ALTER TABLE ' . $this->oid($table,true) . ' ADD CONSTRAINT ' . $this->oid('UK_'.$table.'_'.$name) . ' UNIQUE (' . $this->_createColsSql($fields) . ')');
+  function addUniqueKey($table, $name, $fields) {
+    db_query('ALTER TABLE ' . $this->oid($table,true) . ' ADD CONSTRAINT ' . $this->oid('UK_'.$table.'_'.$name) . ' UNIQUE (' . $this->_createColsSql($fields) . ')');
   }
 
   /**
    * Drop a unique key.
    *
-   * @param $ret
-   *   Array to which query results will be added.
    * @param $table
    *   The table to be altered.
    * @param $name
    *   The name of the key.
    */
-  public function dropUniqueKey(&$ret, $table, $name) {
-    $ret[] = update_sql('ALTER TABLE ' . $this->oid($table,true) . ' DROP CONSTRAINT ' . $this->oid('UK_'.$table.'_'.$name));
+  public function dropUniqueKey($table, $name) {
+    db_query('ALTER TABLE ' . $this->oid($table,true) . ' DROP CONSTRAINT ' . $this->oid('UK_'.$table.'_'.$name));
   }
 
   /**
    * Add an index.
    *
-   * @param $ret
-   *   Array to which query results will be added.
    * @param $table
    *   The table to be altered.
    * @param $name
@@ -641,11 +616,11 @@ class DatabaseSchema_oracle extends DatabaseSchema {
    * @param $fields
    *   An array of field names.
    */
-  public function addIndex(&$ret, $table, $name, $fields) {
+  public function addIndex($table, $name, $fields) {
   	$sql= $this->_createIndexSql($table, $name, $fields);
   	
   	foreach ($sql as $stmt)
-       $ret[] = update_sql($stmt);
+       db_query($stmt);
        
   }
   
@@ -696,15 +671,13 @@ class DatabaseSchema_oracle extends DatabaseSchema {
   /**
    * Drop an index.
    *
-   * @param $ret
-   *   Array to which query results will be added.
    * @param $table
    *   The table to be altered.
    * @param $name
    *   The name of the index.
    */
-  public function dropIndex(&$ret, $table, $name) {
-    $ret[] = update_sql('DROP INDEX ' . $this->oid('IDX_'.$table.'_'.$name,true));
+  public function dropIndex($table, $name) {
+    db_query('DROP INDEX ' . $this->oid('IDX_'.$table.'_'.$name,true));
   }
 
   /**
@@ -730,8 +703,8 @@ class DatabaseSchema_oracle extends DatabaseSchema {
    * and you want to change foo.bar to be type serial, leaving it as the
    * primary key. The correct sequence is:
    * @code
-   * db_drop_primary_key($ret, 'foo');
-   * db_change_field($ret, 'foo', 'bar', 'bar',
+   * db_drop_primary_key( 'foo');
+   * db_change_field('foo', 'bar', 'bar',
    *   array('type' => 'serial', 'not null' => TRUE),
    *   array('primary key' => array('bar')));
    * @endcode
@@ -754,8 +727,6 @@ class DatabaseSchema_oracle extends DatabaseSchema {
    * unless you are converting a field to be type serial. You can use
    * the $new_keys argument in all cases.
    *
-   * @param $ret
-   *   Array to which query results will be added.
    * @param $table
    *   Name of the table.
    * @param $field
@@ -769,18 +740,18 @@ class DatabaseSchema_oracle extends DatabaseSchema {
    *   table along with changing the field. The format is the same as a
    *   table specification but without the 'fields' element.
    */
-  public function changeField(&$ret, $table, $field, $field_new, $spec, $new_keys = array()) {
+  public function changeField($table, $field, $field_new, $spec, $new_keys = array()) {
   	
   	$info= $this->getTableSerialInfo($table);
   	
   	if (isset($info->sequence_name)&&$info->sequence_name&&$this->oid($field,false,false)==$info->field_name)
   	{
-  	   $ret[] = update_sql('DROP TRIGGER {'.$info->trigger_name.'}');
-  	   $ret[] = update_sql('DROP SEQUENCE {'.$info->sequence_name.'}');
+  	   db_query('DROP TRIGGER {'.$info->trigger_name.'}');
+  	   db_query('DROP SEQUENCE {'.$info->sequence_name.'}');
   	}
   	
   	
-    $ret[] = update_sql("ALTER TABLE " . $this->oid($table,true) . " RENAME COLUMN ". $this->oid($field) ." TO " . $this->oid($field.'_old'));
+    db_query("ALTER TABLE " . $this->oid($table,true) . " RENAME COLUMN ". $this->oid($field) ." TO " . $this->oid($field.'_old'));
     
     $not_null = isset($spec['not null']) ? $spec['not null'] : FALSE;
     
@@ -790,19 +761,19 @@ class DatabaseSchema_oracle extends DatabaseSchema {
       $spec['size'] = 'normal';
     }
     
-    $this->addField($ret, $table, "$field_new", $spec);
+    $this->addField($table, "$field_new", $spec);
 
     $map = $this->getFieldTypeMap();
-    $ret[] = update_sql("UPDATE " . $this->oid($table,true) . " SET ". $this->oid($field_new) . " = " . $this->oid($field.'_old'));
+    db_query("UPDATE " . $this->oid($table,true) . " SET ". $this->oid($field_new) . " = " . $this->oid($field.'_old'));
 
     if ($not_null) {
-      $ret[] = update_sql("ALTER TABLE " . $this->oid($table,true) . " MODIFY (". $this->oid($field_new) . " NOT NULL)");
+      db_query("ALTER TABLE " . $this->oid($table,true) . " MODIFY (". $this->oid($field_new) . " NOT NULL)");
     }
 
-    $this->dropField($ret, $table, $field . '_old');
+    $this->dropField($table, $field . '_old');
 
     if (isset($new_keys)) {
-      $this->_createKeys($ret, $table, $new_keys);
+      $this->_createKeys($table, $new_keys);
     }
     
   	if (isset($info->sequence_name)&&$info->sequence_name&&$this->oid($field,false,false)==$info->field_name)
@@ -810,12 +781,12 @@ class DatabaseSchema_oracle extends DatabaseSchema {
   	    $statements= $this->createSerialSql($table,$this->oid($field_new,false,false),$info->sequence_restart);
   	    
   	    foreach ($statements as $statement)
-  	     $ret[] = update_sql($statement);
+  	     db_query($statement);
   	}
     
     $this->resetLongIdentifiers();
     $this->removeTableInfoCache($table);
-    $this->rebuildDefaultsTrigger($ret,$table);
+    $this->rebuildDefaultsTrigger($table);
   }
 
   protected function _createIndexSql($table, $name, $fields) {
@@ -835,22 +806,28 @@ class DatabaseSchema_oracle extends DatabaseSchema {
     
     return $sql;
   }
+  
+  public function indexExists($table, $name) {
+  	$schema= $this->tableSchema($this->connection->prefixTables('{' . strtoupper($table) . '}',true));
 
-  protected function _createKeys(&$ret, $table, $new_keys) {
+    return $this->connection->query("SELECT COUNT(indexname) FROM all_indexes WHERE index_name = ? and table_name= ? and owner= ?",array($this->oid($name,false,false),$this->oid($table,false,false),$schema))->fetchField();
+  }  
+
+  protected function _createKeys($table, $new_keys) {
     
   	if (isset($new_keys['primary key'])) {
-      $this->addPrimaryKey($ret, $table, $new_keys['primary key']);
+      $this->addPrimaryKey($table, $new_keys['primary key']);
     }
     
     if (isset($new_keys['unique keys'])) {
       foreach ($new_keys['unique keys'] as $name => $fields) {
-        $this->addUniqueKey($ret, $table, $name, $fields);
+        $this->addUniqueKey($table, $name, $fields);
       }
     }
     
     if (isset($new_keys['indexes'])) {
       foreach ($new_keys['indexes'] as $name => $fields) {
-        $this->addIndex($ret, $table, $name, $fields);
+        $this->addIndex($table, $name, $fields);
       }
     }
     

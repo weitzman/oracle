@@ -98,8 +98,7 @@ class DatabaseConnection_oracle extends DatabaseConnection
   }
   
   public function query($query, array $args = array(), $options = array(), $retried = 0) {
-  	
-	// Use default values if not already set.
+  	// Use default values if not already set.
     $options += $this->defaultOptions();
 
     try {
@@ -179,6 +178,39 @@ class DatabaseConnection_oracle extends DatabaseConnection
 	return $count;
   }
   
+  /**
+   * Retrive a the next id in a sequence.
+   *
+   * Oracle has built in sequences. We'll use these instead of inserting
+   * and updating a sequences table.
+   */
+  public function nextId($existing = 0) {
+
+    // Retrive the name of the sequence. This information cannot be cached 
+    // because the prefix may change, for example, like it does in simpletests.
+    $sequence_name = str_replace('"','',$this->makeSequenceName('sequences', 'value'));
+
+    $id = $this->query("SELECT " . $sequence_name . ".nextval FROM DUAL")->fetchField();
+    if ($id > $existing) {
+      return $id;
+    }
+
+    $id = $this->query("SELECT " . $sequence_name . ".nextval FROM DUAL")->fetchField();
+    if ($id > $existing) {
+      return $id;
+    }
+
+    // Reset the sequence to a higher value than the existing id.
+    $this->query("DROP SEQUENCE " . $sequence_name);
+    $this->query("CREATE SEQUENCE " . $sequence_name." START WITH ".($existing+1));
+    
+
+    // Retrive the next id. We know this will be as high as we want it.
+    $id = $this->query("SELECT " . $sequence_name . ".nextval FROM DUAL")->fetchField();
+
+    return $id;
+  }  
+  
   public function lastInsertId($sequence_name) {
   	try
   	{
@@ -187,8 +219,8 @@ class DatabaseConnection_oracle extends DatabaseConnection
   	catch (Exception $ex)
   	{ /* ignore if CURRVAL not set (may be an insert that specified the serial field) */  }
   }
-
-  public function queryRange($query, array $args, $from, $count, array $options = array()) {
+  
+  public function queryRange($query, $from, $count, array $args = array(), array $options = array()) {
   	
     $start= ((int)$from+1);
     $end= ((int)$count+(int)$from);
@@ -212,7 +244,7 @@ class DatabaseConnection_oracle extends DatabaseConnection
 
   }
 
-  public function queryTemporary($query, array $args, array $options = array()) {
+  public function queryTemporary($query, array $args = array(), array $options = array()) {
     $tablename = $this->generateTemporaryTableName();
     try { db_query("DROP TABLE {". $tablename ."}"); } catch (Exception $ex) { /* ignore drop errors */ }
     db_query('CREATE GLOBAL TEMPORARY TABLE {'. $tablename .'} ON COMMIT PRESERVE ROWS AS '.$query, $args);
@@ -353,11 +385,13 @@ class DatabaseConnection_oracle extends DatabaseConnection
 
      $search = array ('/("\w+?")/e',
                       "/([\s\(]+)('.+?'|[^\s]+)(\s+)(NOT ){0,1}LIKE(\s+)('.+?'|[^\s\)]+)/", // make like operator case insensitive
-                      "/([^\s\(]+) & ([^\s]+) = ([^\s\)]+)/"); // bitand
+                      "/([^\s\(]+) & ([^\s]+) = ([^\s\)]+)/",
+                      "/([^\s\(]+) & ([^\s]+) <> ([^\s\)]+)/"); // bitand
 
      $replace = array ("strtoupper('\\1')",
                        "\\1UPPER(\\2) \\4LIKE UPPER(\\6)",
-                       "BITAND(\\1,\\2) = \\3");
+                       "BITAND(\\1,\\2) = \\3",
+                       "BITAND(\\1,\\2) <> \\3");
 
      return str_replace('\\"','"',preg_replace($search, $replace, $query));  	
   	  
@@ -385,7 +419,7 @@ class DatabaseConnection_oracle extends DatabaseConnection
   {
         $search = array ("/({)(\w+)(})/e", // escapes all table names
                          "/({L#)([0-9]+)(})/e", // escapes long id
-		                 "/([\:])(uid|session|file|access|mode|comment|desc)/e",
+		                 "/(\:)(uid|session|file|access|mode|comment|desc)/e",
 			   	         "/(<uid>|<session>|<file>|<access>|<mode>|<comment>|<desc>)/e",
 			   	         '/([\(\.\s,])(uid|session|file|access|mode|comment|desc)([,\s\=)])/e',
                          '/([\(\.\s,])(uid|session|file|access|mode|comment|desc)$/e');
@@ -413,18 +447,22 @@ class DatabaseConnection_oracle extends DatabaseConnection
 		$search = array ("''||", // remove empty concatenations leaved by concatenate_bind_variables
 	                     "||''",
 	                     "IN ()", // translate 'IN ()' to '= NULL' they do not match anything anyway (always false)
+	                     "IN  ()",
 	                     '(FALSE)',
 	                     'POW(',
 	                     ") AS count_alias", // ugly hacks here
-		                 '"{URL_ALIAS}" GROUP BY path');
+		                 '"{URL_ALIAS}" GROUP BY path',
+		                  "ESCAPE '\\\\'");
 	
 		$replace = array ("",
 	                      "",
 	                      "= NULL",
+	                      "= NULL",
 	                      "(1=0)",
 	                      "POWER(",
 	                      ") count_alias",// ugly hacks replace strings here
-		                  '"{URL_ALIAS}" GROUP BY SUBSTRING_INDEX(src, \'/\', 1)');
+		                  '"{URL_ALIAS}" GROUP BY SUBSTRING_INDEX(source, \'/\', 1)',
+		                  "ESCAPE '\\'");
 	  	
 		return str_replace($search, $replace, $query);
   }

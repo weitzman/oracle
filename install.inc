@@ -3,19 +3,36 @@
 
 // Oracle specific install functions
 
-class DatabaseInstaller_oracle extends DatabaseInstaller {
+class DatabaseTasks_oracle extends DatabaseTasks {
   protected $pdoDriver = 'oci';
   
   public function name() {
     return 'Oracle';
   }
   
-  private function failsafe_ddl($ddl) {
-     update_sql("begin execute immediate '$ddl'; exception when others then null; end;");
+  public function __construct() {
+    $this->tasks = array_merge(array(array(
+      'function' => 'initializeDatabase',
+      'arguments' => array(),
+    )),$this->tasks);
+    syslog(LOG_ERR,"CONSTRUCT");
+  }  
+  
+  
+  private function oracle_query($sql, $args=NULL) {
+    return Database::getConnection('default')->oracleQuery($sql,$args);
   }
   
-  public function test() {
+  private function failsafe_ddl($ddl) {
+     $this->oracle_query("begin execute immediate '$ddl'; exception when others then null; end;");
+  }
+  
+  /**
+   * Make Oracle Drupal friendly.
+   */  
+  public function initializeDatabase() {
   	
+  	syslog(LOG_ERR,"INITIALIZING");
     try {
     	
       $this->failsafe_ddl("create table blobs (blobid number primary key, content blob, hash varchar2(32))"); // used to store blob values
@@ -26,7 +43,7 @@ class DatabaseInstaller_oracle extends DatabaseInstaller {
       $this->failsafe_ddl("create sequence seq_long_identifiers"); // long_identifiers primary key sequence
       $this->failsafe_ddl("create table used_blobs ( blobid number primary key ) organization index");
 /*
-      update_sql("create or replace trigger trg_drop_sequences
+      $this->oracle_query("create or replace trigger trg_drop_sequences
 before drop
 on schema
 declare
@@ -41,7 +58,7 @@ begin
    
 end trg_drop_sequences;");
   */    
-      update_sql("create or replace package drupal_timestamp
+      $this->oracle_query("create or replace package drupal_timestamp
 as
 
    function todate(p_timestamp number)
@@ -55,7 +72,7 @@ as
       
 end;");
 
-      update_sql("create or replace package body drupal_timestamp
+      $this->oracle_query("create or replace package body drupal_timestamp
 as
 
   PHP_BASE_TIME   timestamp:= (from_tz(to_timestamp('01011970000000','DDMMYYYYHH24MISS'), '+00:00') at time zone '+00:00');
@@ -82,7 +99,7 @@ as
 end;");
       
       
-      update_sql("create or replace package blobs_cleaner
+      $this->oracle_query("create or replace package blobs_cleaner
 as
 
   type num_table is table of number;
@@ -95,7 +112,7 @@ as
   
 end blobs_cleaner;");
       
-      update_sql("create or replace package body blobs_cleaner as
+      $this->oracle_query("create or replace package body blobs_cleaner as
 
   type refcur is ref cursor;
   
@@ -147,7 +164,7 @@ end blobs_cleaner;");
 
 end blobs_cleaner;");
       
-      update_sql("create or replace package identifier
+      $this->oracle_query("create or replace package identifier
 as
 
   long_identifier_prefix  constant varchar2(10):= '".ORACLE_LONG_IDENTIFIER_PREFIX."';
@@ -184,7 +201,7 @@ as
     
 end identifier;");      
       
-      update_sql("create or replace package body identifier
+      $this->oracle_query("create or replace package body identifier
 as
 
   function get_for(p_long_identifier varchar2)
@@ -450,12 +467,11 @@ end;");
     
     }
     catch (Exception $e) {
-      drupal_set_message(st("Error creating oracle needed objects: %error", array('%error' => $e->getMessage())), 'error');
-      $this->error = TRUE;
-      return FALSE;
+      syslog(LOG_ERR,$e->getMessage());
+      $this->fail(st('Drupal could not be correctly setup with the existing database. Revise any errors.'));
     }
   	
-  	return parent::test();
+  	$this->pass(st('Oracle has initialized itself.'));
   }
 }
 
