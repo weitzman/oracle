@@ -14,7 +14,7 @@ define('ORACLE_BLOB_PREFIX','B^#'); // prefix used for BLOB values
 define('ORACLE_MAX_VARCHAR2_LENGTH',4000); // maximum length for a string value in a table column in oracle 
 define('ORACLE_ROWNUM_ALIAS','RWN_TO_REMOVE'); // alias used for queryRange filtering (we have to remove that from resultsets)
 
-openlog("oracle", LOG_PID | LOG_PERROR, LOG_USER);
+openlog("oracle", LOG_PID | LOG_PERROR, LOG_LOCAL0);
 
 /**
  * @ingroup database
@@ -28,6 +28,8 @@ class DatabaseConnection_oracle extends DatabaseConnection
 	
   // long identifier handler class
   public $lih;
+
+  private $use_cache= false;
   
   private $oraclePrefix= array();
 	
@@ -61,10 +63,14 @@ class DatabaseConnection_oracle extends DatabaseConnection
     // Transactional DDL is not available in Oracle,
     $this->transactionalDDLSupport = FALSE;
     
+    // needed by DatabaseConnection.getConnectionOptions
+    $this->connectionOptions = $connection_options;    
+    
     // Default to TCP connection on port 5432.
     if (empty($connection_options['port'])) 
       $connection_options['port'] = 1521;
     
+    $this->use_cache= $connection_options['use_cache'];
 
     $dsn = 'oci:dbname=//' . $connection_options['host'] . ':' . $connection_options['port'].'/' . $connection_options['database'] . ';charset=AL32UTF8';
     parent::__construct($dsn, $connection_options['username'], $connection_options['password'], array(
@@ -340,7 +346,6 @@ class DatabaseConnection_oracle extends DatabaseConnection
 	  return $this->escapeAnsi($ret);
   }
   
-  // TODO: would be wonderfull to enble a memcached switch here
   public function prepareQuery($query)
   {
   	    global $oracle_debug;
@@ -348,20 +353,35 @@ class DatabaseConnection_oracle extends DatabaseConnection
 	    $iquery = md5($this->prefixTables($query,true));
 	    
 	    if (empty($this->preparedStatements[$iquery]))
-	    {
-	      $oquery= $query;
+	    {	    
+	        $oquery= "";
+	        
+            if ($this->use_cache)
+            {
+               $cached= cache_get($iquery, 'cache_oracle'); 
+
+               if ($cached)
+                  $oquery= $cached->data;
+            }
+            
+            if (!$oquery)
+            {	       
+        	      $oquery= $query;
+        	      $oquery= $this->escapeEmptyLiterals($oquery);
+        	      $oquery= $this->escapeAnsi($oquery);
+        	      $oquery= $this->lih->escapeLongIdentifiers($oquery);
+        	      $oquery= $this->escapeReserved($oquery);
+        	      $oquery= $this->escapeCompatibility($oquery);
+        	      $oquery= $this->prefixTables($oquery,true);
+        	      $oquery= $this->escapeIfFunction($oquery);
+        	      
+                  if ($this->use_cache)
+                    cache_set($iquery,$oquery,'cache_oracle');
+
+ 	        }
 	      
-	      $oquery= $this->escapeEmptyLiterals($oquery);
-	      $oquery= $this->escapeAnsi($oquery);
-	      $oquery= $this->lih->escapeLongIdentifiers($oquery);
-	      $oquery= $this->escapeReserved($oquery);
-	      $oquery= $this->escapeCompatibility($oquery);
-	      $oquery= $this->prefixTables($oquery,true);
-	      $oquery= $this->escapeIfFunction($oquery);
-	      
-	      
-	      //syslog(LOG_ERR,"oquery: ".$oquery);
-	      $this->preparedStatements[$iquery] = $this->prepare($oquery);
+	        //syslog(LOG_ERR,"oquery: ".$oquery);
+	        $this->preparedStatements[$iquery] = $this->prepare($oquery);
 	    }
 	    
 	    if ($oracle_debug) syslog(LOG_ERR,"query: ".$query." prepared: ".$this->preparedStatements[$iquery]);
