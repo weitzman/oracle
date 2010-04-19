@@ -344,7 +344,7 @@ class DatabaseSchema_oracle extends DatabaseSchema {
 
       'date:normal' => 'date',
 
-      'datetime:normal' => 'timestamp with local timezone',
+      'datetime:normal' => 'timestamp with local time zone',
 
       'time:normal'     => 'timestamp',
 
