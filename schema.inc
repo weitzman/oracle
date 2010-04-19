@@ -342,7 +342,11 @@ class DatabaseSchema_oracle extends DatabaseSchema {
       'blob:big' => 'varchar2',
       'blob:normal' => 'varchar2',
 
-      'datetime:normal' => 'timestamp with local time zone',
+      'date:normal' => 'date',
+
+      'datetime:normal' => 'timestamp with local timezone',
+
+      'time:normal'     => 'timestamp',
 
       'serial:tiny' => 'number',
       'serial:small' => 'number',
@@ -392,11 +396,11 @@ class DatabaseSchema_oracle extends DatabaseSchema {
   	
   	if (isset($info->sequence_name)&&$info->sequence_name)
   	{
-  	   db_query('DROP TRIGGER {'.$info->trigger_name.'}');
-  	   db_query('DROP SEQUENCE {'.$info->sequence_name.'}');
+  	   $this->failsafe_ddl('DROP TRIGGER {'.$info->trigger_name.'}');
+  	   $this->failsafe_ddl('DROP SEQUENCE {'.$info->sequence_name.'}');
   	}
   	
-  	db_query("DROP TRIGGER ".$this->oid('TRG_'.$table.'_DEFS',true)); // drop defaults trigger
+  	$this->failsafe_ddl("DROP TRIGGER ".$this->oid('TRG_'.$table.'_DEFS',true)); // drop defaults trigger
   	
     db_query('ALTER TABLE ' . $this->oid($table,true) . ' RENAME TO ' . $this->oid($new_name,false) ); // should not use prefix because schema is not needed on rename
     
@@ -513,8 +517,8 @@ class DatabaseSchema_oracle extends DatabaseSchema {
   	
   	if (isset($info->sequence_name)&&$info->sequence_name&&$this->oid($field,false,false)==$info->field_name)
   	{
-  	   db_query('DROP TRIGGER {'.$info->trigger_name.'}');
-  	   db_query('DROP SEQUENCE {'.$info->sequence_name.'}');
+  	   $this->failsafe_ddl('DROP TRIGGER {'.$info->trigger_name.'}');
+  	   $this->failsafe_ddl('DROP SEQUENCE {'.$info->sequence_name.'}');
   	}
   	
     db_query('ALTER TABLE ' . $this->oid($table,true) . ' DROP COLUMN ' . $this->oid($field));
@@ -746,8 +750,8 @@ class DatabaseSchema_oracle extends DatabaseSchema {
   	
   	if (isset($info->sequence_name)&&$info->sequence_name&&$this->oid($field,false,false)==$info->field_name)
   	{
-  	   db_query('DROP TRIGGER {'.$info->trigger_name.'}');
-  	   db_query('DROP SEQUENCE {'.$info->sequence_name.'}');
+  	   $this->failsafe_ddl('DROP TRIGGER {'.$info->trigger_name.'}');
+  	   $this->failsafe_ddl('DROP SEQUENCE {'.$info->sequence_name.'}');
   	}
   	
   	
@@ -898,4 +902,11 @@ class DatabaseSchema_oracle extends DatabaseSchema {
   	//  syslog(LOG_ERR,"res: ".print_r($res,true));
   	  return $res;
   }
+
+
+  private function failsafe_ddl($ddl) {
+     db_query("begin execute immediate '$ddl'; exception when others then null; end;");
+  }
+
+
 }
