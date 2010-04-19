@@ -280,6 +280,10 @@ class DatabaseSchema_oracle extends DatabaseSchema {
       $sql .= ' NOT NULL';
     }
     
+    if (!empty($spec['unsigned'])) {
+      $sql .= " CHECK ($oname >= 0)";
+    }
+
     return $sql;
   }
 
@@ -814,7 +818,18 @@ class DatabaseSchema_oracle extends DatabaseSchema {
   public function indexExists($table, $name) {
   	$schema= $this->tableSchema($this->connection->prefixTables('{' . strtoupper($table) . '}',true));
 
-    return $this->connection->query("SELECT COUNT(indexname) FROM all_indexes WHERE index_name = ? and table_name= ? and owner= ?",array($this->oid($name,false,false),$this->oid($table,false,false),$schema))->fetchField();
+    $oname= $this->oid('IDX_'.$table.'_'.$name,false,false);
+     
+  	if ($schema)
+      $retval= $this->connection->query("SELECT 1 FROM all_indexes WHERE index_name = ? and table_name= ? and owner= ?",array($oname,$this->oid($table,false,false),$schema))->fetchField();
+    else
+      $retval= $this->connection->query("SELECT 1 FROM user_indexes WHERE index_name = ? and table_name= ?",array($oname,$this->oid($table,false,false)))->fetchField();
+
+    if ($retval)
+      return true;
+    else
+      return false;
+
   }  
 
   protected function _createKeys($table, $new_keys) {
@@ -874,20 +889,30 @@ class DatabaseSchema_oracle extends DatabaseSchema {
   
   public function tableExists($table) {
   	$schema= $this->tableSchema($this->connection->prefixTables('{' . strtoupper($table) . '}',true));
-  	
+
   	if ($schema)
-  	  return db_query("SELECT 1 FROM all_tables WHERE temporary= 'N' and table_name = ? and owner= ?",array($this->oid($table,false,false),$schema))->fetchField();
+  	  $retval= db_query("SELECT 1 FROM all_tables WHERE temporary= 'N' and table_name = ? and owner= ?",array($this->oid($table,false,false),$schema))->fetchField();
   	else
-  	  return db_query("SELECT 1 FROM user_tables WHERE temporary= 'N' and table_name = ?",array($this->oid($table,false,false)))->fetchField(); 
+  	  $retval= db_query("SELECT 1 FROM user_tables WHERE temporary= 'N' and table_name = ?",array($this->oid($table,false,false)))->fetchField(); 
+  	  
+    if ($retval)
+      return true;
+    else
+      return false;
   }
   
   public function columnExists($table, $column) {
   	$schema= $this->tableSchema($this->connection->prefixTables('{' . strtoupper($table) . '}',true));
   	
   	if ($schema)
-  	  return db_query("SELECT 1 FROM all_tab_columns WHERE column_name = ? and table_name = ? and owner= ?",array($this->oid($column,false,false),$this->oid($table,false,false),$schema))->fetchField();
+  	  $retval= db_query("SELECT 1 FROM all_tab_columns WHERE column_name = ? and table_name = ? and owner= ?",array($this->oid($column,false,false),$this->oid($table,false,false),$schema))->fetchField();
   	else
-  	  return db_query("SELECT 1 FROM user_tab_columns WHERE column_name= ? and table_name = ?",array($this->oid($column,false,false),$this->oid($table,false,false)))->fetchField(); 
+  	  $retval= db_query("SELECT 1 FROM user_tab_columns WHERE column_name= ? and table_name = ?",array($this->oid($column,false,false),$this->oid($table,false,false)))->fetchField(); 
+
+    if ($retval)
+      return true;
+    else
+      return false;
   }
   
   public function findTables($table_expression) {
