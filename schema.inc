@@ -428,6 +428,7 @@ class DatabaseSchema_oracle extends DatabaseSchema {
    *   The table to be dropped.
    */
   public function dropTable($table) {
+    syslog(LOG_ERR,"dropTable($table)");
   	$info= $this->getTableInfo($table);
   	
   	if ($info->sequence_name)
@@ -930,7 +931,12 @@ class DatabaseSchema_oracle extends DatabaseSchema {
 
 
   private function failsafe_ddl($ddl) {
-     db_query("begin execute immediate '$ddl'; exception when others then null; end;");
+     try
+     {
+        db_query($ddl);
+     }
+     catch (Exception $ex)
+     { /* ignore */ }
   }
 
 
