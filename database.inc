@@ -69,8 +69,9 @@ class DatabaseConnection_oracle extends DatabaseConnection
     // Default to TCP connection on port 5432.
     if (empty($connection_options['port'])) 
       $connection_options['port'] = 1521;
-    
-    $this->use_cache= $connection_options['use_cache'];
+   
+    if (isset($connection_options['use_cache'])) 
+     $this->use_cache= $connection_options['use_cache'];
 
     $dsn = 'oci:dbname=//' . $connection_options['host'] . ':' . $connection_options['port'].'/' . $connection_options['database'] . ';charset=AL32UTF8';
     parent::__construct($dsn, $connection_options['username'], $connection_options['password'], array(
