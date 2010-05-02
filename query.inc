@@ -31,7 +31,7 @@ class InsertQuery_oracle extends InsertQuery {
     
     
     $transaction = $this->connection->startTransaction();
-    $stmt = $this->connection->prepareQuery((string)$this)->getStatement();
+    $stmt = $this->connection->prepareQuery((string)$this)->getStatement(NULL);
     $last_insert_id= 0;
     
     foreach ($this->insertValues as &$insert_values)
@@ -43,6 +43,13 @@ class InsertQuery_oracle extends InsertQuery {
       
         $last_insert_id = $this->connection->query($stmt,  array(), $this->queryOptions);
     }
+
+    if (!empty($this->fromQuery)) {
+      foreach ($this->fromQuery->getArguments() as $key => $value) {
+        $stmt->bindParam($key, $value);
+      }
+    }
+    
     
     if (count($this->insertValues)==0) // all default query
         $last_insert_id = $this->connection->query($stmt,  array(), $this->queryOptions);
@@ -127,7 +134,7 @@ class UpdateQuery_oracle extends UpdateQuery {
 
     // Because we filter $fields the same way here and in __toString(), the
     // placeholders will all match up properly.
-    $stmt = $this->connection->prepareQuery((string)$this)->getStatement();
+    $stmt = $this->connection->prepareQuery((string)$this)->getStatement(NULL);
 
     // Fetch the list of blobs and sequences used on that table.
     $info= $this->connection->schema()->getTableInfo($this->table);

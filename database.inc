@@ -14,7 +14,7 @@ define('ORACLE_BLOB_PREFIX','B^#'); // prefix used for BLOB values
 define('ORACLE_MAX_VARCHAR2_LENGTH',4000); // maximum length for a string value in a table column in oracle 
 define('ORACLE_ROWNUM_ALIAS','RWN_TO_REMOVE'); // alias used for queryRange filtering (we have to remove that from resultsets)
 
-openlog("oracle", LOG_PID | LOG_PERROR, LOG_LOCAL0);
+openlog("oracle", LOG_PID | LOG_PERROR, LOG_USER);
 
 /**
  * @ingroup database
@@ -69,9 +69,8 @@ class DatabaseConnection_oracle extends DatabaseConnection
     // Default to TCP connection on port 5432.
     if (empty($connection_options['port'])) 
       $connection_options['port'] = 1521;
-   
-    if (isset($connection_options['use_cache'])) 
-      $this->use_cache= $connection_options['use_cache'];
+    
+    $this->use_cache= $connection_options['use_cache'];
 
     $dsn = 'oci:dbname=//' . $connection_options['host'] . ':' . $connection_options['port'].'/' . $connection_options['database'] . ';charset=AL32UTF8';
     parent::__construct($dsn, $connection_options['username'], $connection_options['password'], array(
@@ -163,6 +162,8 @@ class DatabaseConnection_oracle extends DatabaseConnection
 
       try { $this->rollBack(); } catch (Exception $rex) { syslog(LOG_ERR,"rollback ex: ".$rex->getMessage()); }
       
+      _db_check_install_needed();
+
       if ($options['throw_exception'])
       {
         syslog(LOG_ERR,"error query: ". $query_string .(isset($stmt)&&$stmt instanceof DatabaseStatement_oracle ? " (prepared: ".$stmt->getQueryString()." )" : "")." e: ".$e->getMessage()." args: ".print_r($args,true));
@@ -225,10 +226,14 @@ class DatabaseConnection_oracle extends DatabaseConnection
     return $id;
   }  
   
-  public function lastInsertId($sequence_name) {
+  public function lastInsertId($name=NULL) {
+
+        if (!$name)
+          throw new Exception('The name of the sequence is mandatory for Oracle');
+
   	try
   	{
-  	  return $this->oracleQuery($this->prefixTables("select ".$sequence_name.".currval from dual",true))->fetchColumn();
+  	  return $this->oracleQuery($this->prefixTables("select ".$name.".currval from dual",true))->fetchColumn();
   	}
   	catch (Exception $ex)
   	{ /* ignore if CURRVAL not set (may be an insert that specified the serial field) */  }
@@ -271,7 +276,7 @@ class DatabaseConnection_oracle extends DatabaseConnection
   	  return "TMP_".$this->oracleQuery("SELECT sid from v\$session where audsid = userenv('sessionid')")->fetchColumn()."_".$this->temporaryNameIndex++; 
   }
   
-  public function quote($string)
+  public function quote($string, $parameter_type = PDO::PARAM_STR)
   {
   	  return "'".str_replace("'","''",$string)."'";
   }
@@ -738,7 +743,7 @@ class DatabaseStatement_oracle extends DatabaseStatementPrefetch implements Iter
   	    return $f;
   }
 
-  public function getStatement($query= NULL, &$args = array()) {
+  public function getStatement($query, &$args = array()) {
   	  //syslog(LOG_ERR,"lallero getStatement");
   	return $this->dbh->PDOPrepare($this->queryString);
   }
