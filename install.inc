@@ -15,7 +15,7 @@ class DatabaseTasks_oracle extends DatabaseTasks {
       'function' => 'initializeDatabase',
       'arguments' => array(),
     )),$this->tasks);
-    syslog(LOG_ERR,"CONSTRUCT");
+//    syslog(LOG_ERR,"CONSTRUCT");
   }  
   
   
@@ -32,7 +32,7 @@ class DatabaseTasks_oracle extends DatabaseTasks {
    */  
   public function initializeDatabase() {
   	
-  	syslog(LOG_ERR,"INITIALIZING");
+//  	syslog(LOG_ERR,"INITIALIZING");
     try {
     	
       $this->failsafe_ddl("create table blobs (blobid number primary key, content blob, hash varchar2(32))"); // used to store blob values
