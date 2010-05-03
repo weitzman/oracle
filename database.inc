@@ -163,8 +163,6 @@ class DatabaseConnection_oracle extends DatabaseConnection
 
       try { $this->rollBack(); } catch (Exception $rex) { syslog(LOG_ERR,"rollback ex: ".$rex->getMessage()); }
       
-      _db_check_install_needed();
-
       if ($options['throw_exception'])
       {
         syslog(LOG_ERR,"error query: ". $query_string .(isset($stmt)&&$stmt instanceof DatabaseStatement_oracle ? " (prepared: ".$stmt->getQueryString()." )" : "")." e: ".$e->getMessage()." args: ".print_r($args,true));
