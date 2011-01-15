@@ -32,7 +32,7 @@ class DatabaseConnection_oracle extends DatabaseConnection
   private $use_cache= false;
   
   private $oraclePrefix= array();
-	
+
   // shortcut function to execute statements directly on the database without checks
   public function oracleQuery($query, $args=NULL)
   {
@@ -105,6 +105,10 @@ class DatabaseConnection_oracle extends DatabaseConnection
 
     // force timestamp format used in string representation of datetime to avoid casting problems
     $this->oracleQuery("ALTER SESSION SET NLS_TIMESTAMP_TZ_FORMAT='YYYY-MM-DD HH24:MI:SS'");
+
+    // use the same type of comparison that MySQL use for like operators (remember to execute the create_linguistic_indexes procedure when you install new modules)
+    $this->oracleQuery("ALTER SESSION SET NLS_COMP=LINGUISTIC");
+    $this->oracleQuery("ALTER SESSION SET NLS_SORT=BINARY_CI");
 
     // initialize the long identifier handler
     $this->lih= new DatabaseLongIdentifierHandler_oracle($this);
@@ -614,12 +618,27 @@ class DatabaseConnection_oracle extends DatabaseConnection
 
 
 class DatabaseStatement_oracle extends DatabaseStatementPrefetch implements Iterator, DatabaseStatementInterface {
+
+  private $bindArgs= array();
   
   public function __construct(DatabaseConnection $connection, $query, array $driver_options = array()) {
     $this->dbh = $connection;
     $this->queryString = $query;
     $this->driverOptions = $driver_options;
   }
+  
+  public function bindValue($parameter, $value, $data_type = PDO::PARAM_STR)
+  {
+     $cleared= $this->dbh->cleanupArgValue($value);
+     parent::bindValue($parameter, $cleared, $data_type);
+  }
+  
+  public function bindParam($parameter, &$variable, $data_type = PDO::PARAM_STR, $length = 0, $driver_options = array() )
+  {
+        $this->bindArgs[$parameter]= $this->dbh->cleanupArgValue($variable);
+        parent::bindParam($parameter, $this->bindArgs[$parameter], $data_type, $length, $driver_options);
+  }
+  
   
   public function execute($args = array(), $options = array()) {
     if (isset($options['fetch'])) {

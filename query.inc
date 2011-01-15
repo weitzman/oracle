@@ -127,6 +127,10 @@ class InsertQuery_oracle extends InsertQuery {
 
 
 class UpdateQuery_oracle extends UpdateQuery {
+
+  private $updateArgs= array();
+  private $conditionArgs= array();
+
   public function execute() {
     $max_placeholder = 0;
     $blobs = array();
@@ -158,19 +162,22 @@ class UpdateQuery_oracle extends UpdateQuery {
       unset($fields[$field]);
     }
 
-    foreach ($fields as $field => &$value)
+    foreach ($fields as $field => $value)
     {
         $placeholder = ':db_update_placeholder_' . ($max_placeholder++);
-        $value= $this->connection->cleanupArgValue($value);
-        $stmt->bindParam($placeholder, $value);
+        
+        $this->updateArgs[$placeholder]= $this->connection->cleanupArgValue($value);
+        
+        $stmt->bindParam($placeholder, $this->updateArgs[$placeholder]);
     }
 
     if (count($this->condition)) {
       $this->condition->compile($this->connection);
 
       $arguments = $this->condition->arguments();
-      foreach ($arguments as $placeholder => &$value) {
-        $stmt->bindParam($placeholder, $value);
+      foreach ($arguments as $placeholder => $value) {
+        $this->conditionArgs[$placeholder]= $this->connection->cleanupArgValue($value);
+        $stmt->bindParam($placeholder, $this->conditionArgs[$placeholder]);
       }
     }
 
