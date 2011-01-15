@@ -8,6 +8,7 @@ tar xzvf <oracle-7.x-*.tar.gz>
 TRY
 
 grant connect,resource to drupal identified by drupal;
+grant execute on dbms_crypto to drupal identified by drupal;
 
 or 
 if yo want to use the db_prefix
@@ -16,6 +17,10 @@ grant dba, create any trigger, drop any table, SELECT ANY table, SELECT ANY sequ
 grant connect, resource to drupal with admin option;
 (TODO: those privilege are actually relaxed and should be better defined in the future)
 
+TNSNAMES: thanks to siromega it is possible to use the tnsnames.ora or any tns valid string like
+this sample http://www.php.net/manual/en/ref.pdo-oci.php#64756, by specifying USETNS
+as the hostname at installation time, and using the tns string in the "database name" field.
+This may be particularly usefull if you need to connect a RAC instance.. for example.
 
 http://<host>:<port>/drupal/install.php
 
