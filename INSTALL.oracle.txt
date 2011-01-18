@@ -4,11 +4,17 @@ HOW TO INSTALL ORACLE SUPPORT
 
 cd <path to drupal dir>/includes/database/
 tar xzvf <oracle-7.x-*.tar.gz>
+cd oracle/module
+mv oracle <path to drupal dir>/sites/all/modules
 
 TRY
 
 grant connect,resource to drupal identified by drupal;
-grant execute on dbms_crypto to drupal identified by drupal;
+grant execute on dbms_crypto to drupal;
+
+# to use performance views
+grant select on v_$sql_plan to drupal;
+grant select on v_$sqlarea to drupal;
 
 or 
 if yo want to use the db_prefix
@@ -23,5 +29,8 @@ as the hostname at installation time, and using the tns string in the "database 
 This may be particularly usefull if you need to connect a RAC instance.. for example.
 
 http://<host>:<port>/drupal/install.php
+
+Once you installed your site, got to http://<host>:<port>/drupal/admin/modules
+and enable the Oracle module, then go to http://<host>:<port>/admin/config/development/oracle/blob and click schedule
 
 ENJOY
