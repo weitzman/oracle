@@ -53,6 +53,7 @@ class DatabaseConnection_oracle extends DatabaseConnection
   
   public function __construct(array $connection_options = array())
   {
+    global $oracle_user;
     //syslog(LOG_ERR,"ORACLE CONNECTION");
     // We don't need a specific PDOStatement class here, we simulate it below.
     $this->statementClass = NULL;
@@ -72,18 +73,10 @@ class DatabaseConnection_oracle extends DatabaseConnection
    
     if (isset($connection_options['use_cache'])) 
      $this->use_cache= $connection_options['use_cache'];
+     
+    $oracle_user= $connection_options['username'];
 
-    if ($connection_options['host'] == 'USETNS') 
-    {
-      // Use database as TNSNAME
-      $dsn = 'oci:dbname='.$connection_options['database'] . ';charset=AL32UTF8';
-    }
-    else
-    {
-      // Use host/port/database
-      $dsn = 'oci:dbname=//' . $connection_options['host'] . ':' . $connection_options['port'].'/' . $connection_options['database'] . ';charset=AL32UTF8';
-    }
-
+    $dsn = 'oci:dbname=//' . $connection_options['host'] . ':' . $connection_options['port'].'/' . $connection_options['database'] . ';charset=AL32UTF8';
     parent::__construct($dsn, $connection_options['username'], $connection_options['password'], array(
 
       // Convert numeric values to strings when fetching.
@@ -628,7 +621,7 @@ class DatabaseConnection_oracle extends DatabaseConnection
 
 
 class DatabaseStatement_oracle extends DatabaseStatementPrefetch implements Iterator, DatabaseStatementInterface {
-
+  public $queryString;
   private $bindArgs= array();
   
   public function __construct(DatabaseConnection $connection, $query, array $driver_options = array()) {
