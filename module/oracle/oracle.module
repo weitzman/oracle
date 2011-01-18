@@ -36,7 +36,7 @@ function oracle_menu ()
   $items['admin/config/development/oracle/performance/sql/%'] = array(
     'title' => 'Performance',
     'page callback' => 'oracle_admin_performance_sql',
-    'page arguments' => array(5),
+    'page arguments' => array(6),
     'type' => MENU_CALLBACK,
     'access arguments' => array('configure oracle settings'),
     'file' => 'oracle.admin.inc',

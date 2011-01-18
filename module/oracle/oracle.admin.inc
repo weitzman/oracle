@@ -194,7 +194,7 @@ function oracle_admin_performance_sql($sql_id)
 	  
 	  
 	  $rows = array();
-	  
+
 	  foreach ($arr as $key => $value)
 	   if ($key!='sql_fulltext'&&$key!='sql_text'&&$key!='optimizer_env'&&$key!='bind_data')
 	   $rows[]= array($key,$value);
