@@ -112,19 +112,21 @@ class DatabaseConnection_oracle extends DatabaseConnection
   }
   
   public function query($query, array $args = array(), $options = array(), $retried = 0) {
+    global $oracle_debug;
+    
   	// Use default values if not already set.
     $options += $this->defaultOptions();
 
     try {
       if ($query instanceof PDOStatement) {
-      	//syslog(LOG_ERR,"query: ".$query->queryString." args: ".print_r($args,true));
+      	if ($oracle_debug) syslog(LOG_ERR,"query: ".$query->queryString." args: ".print_r($args,true));
         $stmt = $query;
         $stmt->execute(NULL);
       }
       else {
       	$modified = $this->expandArguments($query, $args);
         $stmt = $this->prepareQuery($query);
-        //syslog(LOG_ERR,"query: ".$stmt->getQueryString()." args: ".print_r($args,true));
+        if ($oracle_debug) syslog(LOG_ERR,"query: ".$stmt->getQueryString()." args: ".print_r($args,true));
         $stmt->execute($this->cleanupArgs($args), $options);
       }
       
@@ -333,8 +335,6 @@ class DatabaseConnection_oracle extends DatabaseConnection
   
   public function prepareQuery($query)
   {
-  	    global $oracle_debug;
-  	    
 	    $iquery = md5($this->prefixTables($query,true));
 	    
 	    if (empty($this->preparedStatements[$iquery]))
@@ -369,7 +369,7 @@ class DatabaseConnection_oracle extends DatabaseConnection
 	        $this->preparedStatements[$iquery] = $this->prepare($oquery);
 	    }
 	    
-	    if ($oracle_debug) syslog(LOG_ERR,"query: ".$query." prepared: ".$this->preparedStatements[$iquery]->queryString);
+	    //if ($oracle_debug) syslog(LOG_ERR,"query: ".$query." prepared: ".$this->preparedStatements[$iquery]->queryString);
 	    
 	    return $this->preparedStatements[$iquery];
   }

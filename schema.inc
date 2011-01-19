@@ -902,7 +902,7 @@ class DatabaseSchema_oracle extends DatabaseSchema {
       return false;
   }
   
-  public function columnExists($table, $column) {
+  public function fieldExists($table, $column) {
   	$schema= $this->tableSchema($this->connection->prefixTables('{' . strtoupper($table) . '}',true));
   	
   	if ($schema)
