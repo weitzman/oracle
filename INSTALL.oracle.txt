@@ -7,7 +7,9 @@ tar xzvf <oracle-7.x-*.tar.gz>
 cd oracle/module
 mv oracle <path to drupal dir>/sites/all/modules
 
-TRY
+GIVE THOSE GRANTS AS A SYSDBA USER
+
+sqlplus / as sysdba
 
 grant connect,resource to drupal identified by drupal;
 grant execute on dbms_crypto to drupal;
@@ -32,5 +34,9 @@ http://<host>:<port>/drupal/install.php
 
 Once you installed your site, got to http://<host>:<port>/drupal/admin/modules
 and enable the Oracle module, then go to http://<host>:<port>/admin/config/development/oracle/blob and click schedule
+
+then create linguistic indexes:
+sqlplus drupal/drupal
+SQL> exec create_linguistic_indexes;
 
 ENJOY
