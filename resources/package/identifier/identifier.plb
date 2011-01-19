@@ -1,4 +1,5 @@
-create or replace package body identifier
+create or replace
+package body identifier
 as
 
   function get_for(p_long_identifier varchar2)
@@ -140,9 +141,10 @@ as
                                      p_blob;
   end;
 
-  procedure check_db_prefix(p_db_prefix varchar2)
+  function check_db_prefix(p_db_prefix varchar2)
+  return varchar2
   as pragma autonomous_transaction;
-    v_db_prefix   varchar2(30):= upper(p_db_prefix);
+    v_db_prefix   varchar2(30):= get_for(p_db_prefix);
   begin
 
      select username
@@ -150,9 +152,12 @@ as
        from all_users
       where username= v_db_prefix;
 
+      return v_db_prefix;
+
   exception
     when no_data_found then
       execute immediate 'grant connect, resource to "'||v_db_prefix||'" identified by "'||v_db_prefix||'"';
+      return v_db_prefix;
   end;
 
    function longin(p_val vargst)
@@ -178,4 +183,3 @@ as
    end;
 
 end identifier;
-

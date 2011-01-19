@@ -11,7 +11,7 @@ define('ORACLE_EMPTY_STRING_REPLACER','^'); // used to replace '' character in q
 define('ORACLE_IDENTIFIER_MAX_LENGTH',30); // maximum oracle identifier length (e.g. table names cannot exceed this length)  
 define('ORACLE_LONG_IDENTIFIER_PREFIX','L#'); // prefix used for long identifier keys
 define('ORACLE_BLOB_PREFIX','B^#'); // prefix used for BLOB values
-define('ORACLE_MAX_VARCHAR2_LENGTH',4000); // maximum length for a string value in a table column in oracle 
+define('ORACLE_MAX_VARCHAR2_LENGTH',1000); // maximum length for a string value in a table column in oracle 
 define('ORACLE_ROWNUM_ALIAS','RWN_TO_REMOVE'); // alias used for queryRange filtering (we have to remove that from resultsets)
 
 openlog("oracle", LOG_PID | LOG_PERROR, LOG_USER);
@@ -95,8 +95,15 @@ class DatabaseConnection_oracle extends DatabaseConnection
     $options= array('return' => Database::RETURN_NULL);
     
     // setup session attributes
-    $this->oracleQuery("begin setup_session; end;");
-    
+    try
+    {
+      $this->oracleQuery("begin setup_session; end;");
+    }
+    catch (Exception $ex)
+    {
+       // ignore at install time
+    }    
+
     // initialize the long identifier handler
     $this->lih= new DatabaseLongIdentifierHandler_oracle($this);
     
@@ -303,49 +310,24 @@ class DatabaseConnection_oracle extends DatabaseConnection
 	    return $this->oraclePrefix[$db_prefix];
   }
   
-  public function prefixTables($sql,$quoted=FALSE) {
-	  global $db_prefix;
-
+  public function prefixTables($sql,$quoted=FALSE) 
+  {
 	  $quote= '';
 	  $ret= '';
 	  
 	  if (!$quoted)
 	    $quote= '"';
-	  
-      if (empty($db_prefix))
-	    $ret= strtr($sql, array('{' => '', '}' => ''));
-	  elseif (is_array($db_prefix))
-	  {
-		    if (array_key_exists('default', $db_prefix))
-		    {
-		      $tmp = $db_prefix;
-		      unset($tmp['default']);
-		      
-		      foreach ($tmp as $key => $val)
-		      {
-		      	 $dp= $this->checkDbPrefix($val);
-		         $sql = strtr($sql, array('{'. strtoupper($key) .'}' => $quote.(empty($dp) ? strtoupper($key) : strtoupper($dp) .'"."'. strtoupper($key)).$quote ));
-		      }
-		      
-		      $dp= $this->checkDbPrefix($db_prefix['default']);
-		      $ret= strtr($sql, array('{' => $quote.(empty($dp) ? '' : strtoupper($dp). '"."'), '}' => $quote));
-		    }
-		    else
-		    {
-		      foreach ($db_prefix as $key => $val)
-		      { 
-		      	 $dp= $this->checkDbPrefix($val);
-		         $sql = strtr($sql, array('{'. strtoupper($key) .'}' => $quote.(empty($dp) ? strtoupper($key) : strtoupper($dp) .'"."'. strtoupper($key)).$quote ));
-		      }
-		      $ret= strtr($sql, array('{' => '', '}' => ''));
-		    }
-	  }
-	  else
-	  {
-	  	 $dp= $this->checkDbPrefix($db_prefix);
-	     $ret= strtr($sql, array('{' =>  $quote.strtoupper($dp) . '"."', '}' => $quote));
-	  }	  	
 
+      // Replace specific table prefixes first.
+      foreach ($this->prefixes as $key => $val) 
+      {
+      	 $dp= $this->checkDbPrefix($val);
+         $sql = strtr($sql, array('{'. strtoupper($key) .'}' => $quote.(empty($dp) ? strtoupper($key) : strtoupper($dp) .'"."'. strtoupper($key)).$quote ));
+      }
+      
+	  $dp= $this->checkDbPrefix($this->defaultPrefix);
+	  $ret= strtr($sql, array('{' => $quote.(empty($dp) ? '' : strtoupper($dp). '"."'), '}' => $quote));
+      
 	  return $this->escapeAnsi($ret);
   }
   
@@ -387,7 +369,7 @@ class DatabaseConnection_oracle extends DatabaseConnection
 	        $this->preparedStatements[$iquery] = $this->prepare($oquery);
 	    }
 	    
-	    if ($oracle_debug) syslog(LOG_ERR,"query: ".$query." prepared: ".$this->preparedStatements[$iquery]);
+	    if ($oracle_debug) syslog(LOG_ERR,"query: ".$query." prepared: ".$this->preparedStatements[$iquery]->queryString);
 	    
 	    return $this->preparedStatements[$iquery];
   }
