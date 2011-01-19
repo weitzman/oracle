@@ -58,7 +58,7 @@ class DatabaseTasks_oracle extends DatabaseTasks {
 	    
 	    while($name = readdir($dir))
 	    {
-	         if (in_array($name,array('.','..','.DS_Store'))) continue;
+	         if (in_array($name,array('.','..','.DS_Store','CVS'))) continue;
 	         if (is_dir($dir_path."/".$name))
 	           $this->create_sp_object($dir_path."/".$name);
 	    }
@@ -92,7 +92,7 @@ class DatabaseTasks_oracle extends DatabaseTasks {
 	    
 	    while($name = readdir($dir))
 	    {
-	         if (in_array($name,array('.','..','.DS_Store'))) continue;
+	         if (in_array($name,array('.','..','.DS_Store','CVS'))) continue;
 	         $this->create_object($dir_path."/".$name);
 	    }
   }
@@ -117,7 +117,7 @@ class DatabaseTasks_oracle extends DatabaseTasks {
 	    
 	    while($name = readdir($dir))
 	    {
-	         if (in_array($name,array('.','..','.DS_Store'))) continue;
+	         if (in_array($name,array('.','..','.DS_Store','CVS'))) continue;
 	         
 	         syslog(LOG_ERR,"creating object: $dir_path/$name");
 	         $this->failsafe_ddl($this->get_php_contents($dir_path."/".$name));
