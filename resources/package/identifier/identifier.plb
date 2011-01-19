@@ -144,7 +144,7 @@ as
   function check_db_prefix(p_db_prefix varchar2)
   return varchar2
   as pragma autonomous_transaction;
-    v_db_prefix   varchar2(30):= get_for(p_db_prefix);
+    v_db_prefix   varchar2(30):= upper(get_for(p_db_prefix));
   begin
 
      select username
