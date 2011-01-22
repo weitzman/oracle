@@ -30,6 +30,10 @@ this sample http://www.php.net/manual/en/ref.pdo-oci.php#64756, by specifying US
 as the hostname at installation time, and using the tns string in the "database name" field.
 This may be particularly usefull if you need to connect a RAC instance.. for example.
 
+
+Before installing the site you can try to increase the ORACLE_MAX_PDO_BIND_LENGTH in database.inc to 4000 to se if your PDO_OCI can handle it.
+Otherwise use 1332.
+
 http://<host>:<port>/drupal/install.php
 
 Once you installed your site, got to http://<host>:<port>/drupal/admin/modules
