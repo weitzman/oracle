@@ -31,7 +31,8 @@ as
 
   procedure write_blob(p_hash varchar2, p_blobid out number, p_blob out blob);
 
-  procedure check_db_prefix(p_db_prefix varchar2);
+  function check_db_prefix(p_db_prefix varchar2)
+  return varchar2;
 
   function longin(p_val vargst)
   return vc_list
