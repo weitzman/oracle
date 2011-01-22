@@ -11,7 +11,8 @@ define('ORACLE_EMPTY_STRING_REPLACER','^'); // used to replace '' character in q
 define('ORACLE_IDENTIFIER_MAX_LENGTH',30); // maximum oracle identifier length (e.g. table names cannot exceed this length)  
 define('ORACLE_LONG_IDENTIFIER_PREFIX','L#'); // prefix used for long identifier keys
 define('ORACLE_BLOB_PREFIX','B^#'); // prefix used for BLOB values
-define('ORACLE_MAX_VARCHAR2_LENGTH',1332); // maximum length for a string value in a table column in oracle (@FIXME: if you read 1332 that is caused by a PDO_OCI bind issue. You can try increasing it manually to 4000 and clear all drupal caches to see if it works)
+define('ORACLE_MAX_VARCHAR2_LENGTH',4000); // maximum length for a string value in a table column in oracle (affects schema.inc table creation)
+define('ORACLE_MAX_PDO_BIND_LENGTH',1332); // maximum length of a string that PDO_OCI can handle (affects runtime blob creation) @FIXME this should be 4000 once PDO_OCI is fixed
 define('ORACLE_ROWNUM_ALIAS','RWN_TO_REMOVE'); // alias used for queryRange filtering (we have to remove that from resultsets)
 
 openlog("oracle", LOG_PID | LOG_PERROR, LOG_USER);
@@ -484,7 +485,7 @@ class DatabaseConnection_oracle extends DatabaseConnection
   	    {
   	      if ($value=='')
   	        return ORACLE_EMPTY_STRING_REPLACER;
-  	      elseif (strlen($value)>ORACLE_MAX_VARCHAR2_LENGTH)
+  	      elseif (strlen($value)>ORACLE_MAX_PDO_BIND_LENGTH)
   	        return $this->writeBlob($value);
   	      else
   	        return $value;
