@@ -11,7 +11,7 @@ define('ORACLE_EMPTY_STRING_REPLACER','^'); // used to replace '' character in q
 define('ORACLE_IDENTIFIER_MAX_LENGTH',30); // maximum oracle identifier length (e.g. table names cannot exceed this length)  
 define('ORACLE_LONG_IDENTIFIER_PREFIX','L#'); // prefix used for long identifier keys
 define('ORACLE_BLOB_PREFIX','B^#'); // prefix used for BLOB values
-define('ORACLE_MAX_VARCHAR2_LENGTH',1000); // maximum length for a string value in a table column in oracle 
+define('ORACLE_MAX_VARCHAR2_LENGTH',1332); // maximum length for a string value in a table column in oracle (@FIXME: if you read 1332 that is caused by a PDO_OCI bind issue. You can try increasing it manually to 4000 and clear all drupal caches to see if it works)
 define('ORACLE_ROWNUM_ALIAS','RWN_TO_REMOVE'); // alias used for queryRange filtering (we have to remove that from resultsets)
 
 openlog("oracle", LOG_PID | LOG_PERROR, LOG_USER);
@@ -271,7 +271,7 @@ class DatabaseConnection_oracle extends DatabaseConnection
   
   public function generateTemporaryTableName()
   {
-  	  // FIXME: create a cleanup job
+  	  // FIXME: create a cleanup job and use userenv('sessionid') directly 
   	  return "TMP_".$this->oracleQuery("SELECT sid from v\$session where audsid = userenv('sessionid')")->fetchColumn()."_".$this->temporaryNameIndex++; 
   }
   
