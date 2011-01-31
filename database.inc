@@ -272,8 +272,8 @@ class DatabaseConnection_oracle extends DatabaseConnection
   
   public function generateTemporaryTableName()
   {
-  	  // FIXME: create a cleanup job and use userenv('sessionid') directly 
-  	  return "TMP_".$this->oracleQuery("SELECT sid from v\$session where audsid = userenv('sessionid')")->fetchColumn()."_".$this->temporaryNameIndex++; 
+  	  // FIXME: create a cleanup job 
+  	  return "TMP_".$this->oracleQuery("SELECT userenv('sessionid') FROM dual")->fetchColumn()."_".$this->temporaryNameIndex++; 
   }
   
   public function quote($string, $parameter_type = PDO::PARAM_STR)
