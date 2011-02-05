@@ -12,7 +12,7 @@ define('ORACLE_IDENTIFIER_MAX_LENGTH',30); // maximum oracle identifier length (
 define('ORACLE_LONG_IDENTIFIER_PREFIX','L#'); // prefix used for long identifier keys
 define('ORACLE_BLOB_PREFIX','B^#'); // prefix used for BLOB values
 define('ORACLE_MAX_VARCHAR2_LENGTH',4000); // maximum length for a string value in a table column in oracle (affects schema.inc table creation)
-define('ORACLE_MAX_PDO_BIND_LENGTH',1332); // maximum length of a string that PDO_OCI can handle (affects runtime blob creation) @FIXME this should be 4000 once PDO_OCI is fixed
+define('ORACLE_MIN_PDO_BIND_LENGTH',665); // maximum length of a string that PDO_OCI can handle (affects runtime blob creation) @FIXME this should be 4000 once PDO_OCI is fixed
 define('ORACLE_ROWNUM_ALIAS','RWN_TO_REMOVE'); // alias used for queryRange filtering (we have to remove that from resultsets)
 
 openlog("oracle", LOG_PID | LOG_PERROR, LOG_USER);
@@ -33,6 +33,8 @@ class DatabaseConnection_oracle extends DatabaseConnection
   private $use_cache= false;
   
   private $oraclePrefix= array();
+
+  private $max_varchar2_bind_size= ORACLE_MIN_PDO_BIND_LENGTH;
 
   // shortcut function to execute statements directly on the database without checks
   public function oracleQuery($query, $args=NULL)
@@ -98,13 +100,19 @@ class DatabaseConnection_oracle extends DatabaseConnection
     // setup session attributes
     try
     {
-      $this->oracleQuery("begin setup_session; end;");
+  	   $stmt= parent::prepare("begin ? := setup_session; end;");
+       $stmt->bindParam(1, $this->max_varchar2_bind_size, PDO::PARAM_INT|PDO::PARAM_INPUT_OUTPUT, 32);
+
+       $stmt->execute();
     }
     catch (Exception $ex)
     {
-       // ignore at install time
+       // ignore at install time 
+       
+       // fallback to minimum bind size
+       $this->max_varchar2_bind_size= ORACLE_MIN_PDO_BIND_LENGTH;
     }    
-
+    
     // initialize the long identifier handler
     $this->lih= new DatabaseLongIdentifierHandler_oracle($this);
     
@@ -485,7 +493,7 @@ class DatabaseConnection_oracle extends DatabaseConnection
   	    {
   	      if ($value=='')
   	        return ORACLE_EMPTY_STRING_REPLACER;
-  	      elseif (strlen($value)>ORACLE_MAX_PDO_BIND_LENGTH)
+  	      elseif (strlen($value)>$this->max_varchar2_bind_size)
   	        return $this->writeBlob($value);
   	      else
   	        return $value;

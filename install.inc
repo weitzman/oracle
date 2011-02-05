@@ -5,6 +5,7 @@
 
 class DatabaseTasks_oracle extends DatabaseTasks {
   protected $pdoDriver = 'oci';
+  protected $ORACLE_MAX_PDO_BIND_LENGTH_LIMITS= array(4000,1332,665);
   
   public function name() {
     return 'Oracle';
@@ -32,6 +33,7 @@ class DatabaseTasks_oracle extends DatabaseTasks {
     try 
     {
       syslog(LOG_ERR,"current dir: ".getcwd()); 	
+      $this->determine_supported_bind_size();
 	  $this->create_failsafe_objects("includes/database/oracle/resources/table");
 	  $this->create_failsafe_objects("includes/database/oracle/resources/index");
 	  $this->create_failsafe_objects("includes/database/oracle/resources/sequence");
@@ -50,6 +52,32 @@ class DatabaseTasks_oracle extends DatabaseTasks {
       $this->fail(st('Drupal could not be correctly setup with the existing database. Revise any errors.'));
     }
   	
+  }
+  
+  private function determine_supported_bind_size()
+  {
+        $this->failsafe_ddl('create table bind_test (val varchar2(4000 char))');
+        
+        $ok= false;
+                
+        foreach ($this->ORACLE_MAX_PDO_BIND_LENGTH_LIMITS as $length)
+	        try
+	        {
+	          syslog(LOG_ERR,"trying to bind $length bytes...");
+              $determined_size= $length;
+	          $this->oracle_query('insert into bind_test values (?)',array(str_pad('a',$length,'a')));
+	          syslog(LOG_ERR,"bind succeeded.");
+	          $ok= true;
+	          break;
+	        }
+	        catch (Exception $ex)
+	        {}
+          
+        if (!$ok) 
+          throw new Exception('unable to determine PDO maximum bind size');  
+          
+        $this->failsafe_ddl("drop table oracle_bind_size");        
+        $this->failsafe_ddl("create table oracle_bind_size as select $determined_size val from dual");
   }
   
   private function create_sp_objects($dir_path)
