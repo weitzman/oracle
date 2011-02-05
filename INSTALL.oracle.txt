@@ -23,7 +23,7 @@ CREATE A SCHEMA
     grant select on v_$sql_plan to drupal;
     grant select on v_$sqlarea to drupal;
 
-  Or if you want to use the db_prefix:
+  Or if you want to use table prefixes (read for details http://api.drupal.org/api/drupal/sites--default--default.settings.php/7/source):
 
     grant dba, create any trigger, drop any table, select any table,
       select any sequence, create user to drupal identified by drupal;
@@ -31,11 +31,9 @@ CREATE A SCHEMA
     alter user drupal default tablespace users temporary tablespace temp;
 
   (TODO: those privilege are actually relaxed and should be better
-  defined in the future)
-
-  Before installing the site, if your database has character set
-  AL32UTF8 then change ORACLE_MAX_PDO_BIND_LENGTH in
-  includes/databases/oracle/database.inc to 666.  Otherwise use 1332.
+   defined in the future, in general they are not needed for existing tables,
+   but if you use modules like "Testing" you need to grant the drupal user rights 
+   to create users because this kind of modules creates tables prefixes on the fly)
 
 INSTALL DRUPAL
 
