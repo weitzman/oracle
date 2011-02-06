@@ -221,6 +221,8 @@ class UpdateQuery_oracle extends UpdateQuery {
       $query .= "\nWHERE " . $this->condition;
     }
 
+    // FIXME: remove the PL/SQL when PDO_OCI returns the correct number of
+    // rows updated now it returns only 1 (updated) or 0 (not)
     return 'begin '.$query.'; :db_sql_rowcount := sql%rowcount; end;';
   }
   
