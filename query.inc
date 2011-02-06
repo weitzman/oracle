@@ -130,6 +130,8 @@ class UpdateQuery_oracle extends UpdateQuery {
 
   private $updateArgs= array();
   private $conditionArgs= array();
+  
+  private $rowCount= 0;
 
   public function execute() {
     $max_placeholder = 0;
@@ -181,13 +183,47 @@ class UpdateQuery_oracle extends UpdateQuery {
       }
     }
 
+    $stmt->bindParam('db_sql_rowcount', $this->rowCount, PDO::PARAM_INT|PDO::PARAM_INPUT_OUTPUT, 32);
+    
     $options = $this->queryOptions;
     $options['already_prepared'] = TRUE;
     $this->connection->query($stmt, array(), $options);
     ////syslog(LOG_ERR,"updateFields: ".print_r($this->fields,true));
     
-    return $stmt->rowCount();
+    return (int)$this->rowCount;
   }
+  
+  public function __toString() 
+  {
+
+    // Create a comments string to prepend to the query.
+    $comments = (!empty($this->comments)) ? '/* ' . implode('; ', $this->comments) . ' */ ' : '';
+
+    // Expressions take priority over literal fields, so we process those first
+    // and remove any literal fields that conflict.
+    $fields = $this->fields;
+    $update_fields = array();
+    foreach ($this->expressionFields as $field => $data) {
+      $update_fields[] = $field . '=' . $data['expression'];
+      unset($fields[$field]);
+    }
+
+    $max_placeholder = 0;
+    foreach ($fields as $field => $value) {
+      $update_fields[] = $field . '=:db_update_placeholder_' . ($max_placeholder++);
+    }
+
+    $query = $comments . 'UPDATE {' . $this->connection->escapeTable($this->table) . '} SET ' . implode(', ', $update_fields);
+
+    if (count($this->condition)) {
+      $this->condition->compile($this->connection, $this);
+      // There is an implicit string cast on $this->condition.
+      $query .= "\nWHERE " . $this->condition;
+    }
+
+    return 'begin '.$query.'; :db_sql_rowcount := sql%rowcount; end;';
+  }
+  
 }
 
 
