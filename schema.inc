@@ -428,7 +428,7 @@ class DatabaseSchema_oracle extends DatabaseSchema {
    *   The table to be dropped.
    */
   public function dropTable($table) {
-    syslog(LOG_ERR,"dropTable($table)");
+    //syslog(LOG_ERR,"dropTable($table)");
   	$info= $this->getTableInfo($table);
   	
   	if ($info->sequence_name)
