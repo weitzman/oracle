@@ -71,12 +71,6 @@ as
 
      v_sequence_oname:= get_for('SEQ_'||upper(p_table)||'_'||v_col_name);
 
-     select sequence_name
-       into v_sequence_oname
-       from all_sequences
-      where sequence_name= v_sequence_oname
-        and sequence_owner= v_schema;
-
      return '"'||v_schema||'"."'||v_sequence_oname||'"';
 
   exception

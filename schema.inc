@@ -416,6 +416,7 @@ class DatabaseSchema_oracle extends DatabaseSchema {
   	     db_query($statement);
   	}
     
+    $this->renameIndexes($table,$new_name);
     $this->resetLongIdentifiers();
     $this->removeTableInfoCache($table);
     $this->rebuildDefaultsTrigger($new_name);
@@ -815,7 +816,26 @@ class DatabaseSchema_oracle extends DatabaseSchema {
     
     return $sql;
   }
-  
+
+  public function renameIndexes($table,$new_name) 
+  {
+    global $oracle_debug;
+    
+  	$schema= $this->tableSchema($this->connection->prefixTables('{' . strtoupper($table) . '}',true));
+
+    $oracle_debug= true;
+    
+  	if ($schema)
+      $stmt= $this->connection->query("SELECT nvl((select identifier from long_identifiers where 'L#'||to_char(id)= index_name),index_name) index_name FROM all_indexes WHERE table_name= ? and owner= ?",array($this->oid($new_name,false,false),$schema));
+    else
+      $stmt= $this->connection->query("SELECT nvl((select identifier from long_identifiers where 'L#'||to_char(id)= index_name),index_name) index_name FROM user_indexes WHERE table_name= ?",array($this->oid($new_name,false,false)));
+      
+    while ($row=$stmt->fetchObject())
+        db_query('ALTER INDEX ' . $this->oid($row->index_name,true) . ' RENAME TO ' . $this->oid(str_replace(strtoupper($table),strtoupper($new_name),$row->index_name),false) ); 
+    
+    $oracle_debug= false;
+  }
+    
   public function indexExists($table, $name) {
   	$schema= $this->tableSchema($this->connection->prefixTables('{' . strtoupper($table) . '}',true));
 
