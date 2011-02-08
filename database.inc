@@ -302,6 +302,18 @@ class DatabaseConnection_oracle extends DatabaseConnection
     return 'oracle';
   }
 
+  public function version() 
+  {
+    try
+    {
+        return $this->getAttribute(PDO::ATTR_SERVER_VERSION);
+    }
+    catch (Exception $ex)
+    {
+        return $this->oracleQuery("select regexp_replace(banner,'[^0-9\.]','') from v\$version where banner like 'CORE%'")->fetchColumn();
+    }
+  }
+  
   public function mapConditionOperator($operator) {
     // We don't want to override any of the defaults.
     return NULL;
