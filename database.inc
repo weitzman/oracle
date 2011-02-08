@@ -79,7 +79,12 @@ class DatabaseConnection_oracle extends DatabaseConnection
      
     $oracle_user= $connection_options['username'];
 
-    $dsn = 'oci:dbname=//' . $connection_options['host'] . ':' . $connection_options['port'].'/' . $connection_options['database'] . ';charset=AL32UTF8';
+    // Use database as TNSNAME
+    if ($connection_options['host'] == 'USETNS') 
+      $dsn = 'oci:dbname='.$connection_options['database'] .';charset=AL32UTF8';
+    else  // Use host/port/database
+      $dsn = 'oci:dbname=//'.$connection_options['host'].':'.$connection_options['port'].'/' . $connection_options['database'].';charset=AL32UTF8';
+        
     parent::__construct($dsn, $connection_options['username'], $connection_options['password'], array(
 
       // Convert numeric values to strings when fetching.
