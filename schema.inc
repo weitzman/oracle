@@ -517,7 +517,8 @@ class DatabaseSchema_oracle extends DatabaseSchema {
    * @param $field
    *   The field to be dropped.
    */
-  public function dropField($table, $field) {
+  public function dropField($table, $field) 
+  {
   	
   	$info= $this->getTableSerialInfo($table);
   	
@@ -526,11 +527,19 @@ class DatabaseSchema_oracle extends DatabaseSchema {
   	   $this->failsafe_ddl('DROP TRIGGER {'.$info->trigger_name.'}');
   	   $this->failsafe_ddl('DROP SEQUENCE {'.$info->sequence_name.'}');
   	}
-  	
-    db_query('ALTER TABLE ' . $this->oid($table,true) . ' DROP COLUMN ' . $this->oid($field));
-    $this->resetLongIdentifiers();
-    $this->removeTableInfoCache($table);
-    $this->rebuildDefaultsTrigger($table);
+  
+    try
+    {	
+	    db_query('ALTER TABLE ' . $this->oid($table,true) . ' DROP COLUMN ' . $this->oid($field));
+	    $this->resetLongIdentifiers();
+	    $this->removeTableInfoCache($table);
+	    $this->rebuildDefaultsTrigger($table);
+        return true;
+    }
+    catch (Exception $ex)
+    {
+        return false;
+    }
   }
 
   /**

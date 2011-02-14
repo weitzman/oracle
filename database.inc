@@ -415,13 +415,11 @@ class DatabaseConnection_oracle extends DatabaseConnection
   	  $query.= ' FROM DUAL';
 
      $search = array ('/("\w+?")/e',
-                      "/([\s\(]+)('.+?'|[^\s]+)(\s+)(NOT ){0,1}LIKE(\s+)('.+?'|[^\s\)]+)/", // make like operator case insensitive
                       "/([^\s\(]+) & ([^\s]+) = ([^\s\)]+)/",
                       "/([^\s\(]+) & ([^\s]+) <> ([^\s\)]+)/", // bitand
                       '/^RELEASE SAVEPOINT (.*)$/');
 
      $replace = array ("strtoupper('\\1')",
-                       "\\1UPPER(\\2) \\4LIKE UPPER(\\6)",
                        "BITAND(\\1,\\2) = \\3",
                        "BITAND(\\1,\\2) <> \\3",
                        "begin null; end;");
