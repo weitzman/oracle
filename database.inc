@@ -450,10 +450,10 @@ class DatabaseConnection_oracle extends DatabaseConnection
   {
         $search = array ("/({)(\w+)(})/e", // escapes all table names
                          "/({L#)([0-9]+)(})/e", // escapes long id
-		                 "/(\:)(uid|session|file|access|mode|comment|desc)/e",
-			   	         "/(<uid>|<session>|<file>|<access>|<mode>|<comment>|<desc>)/e",
-			   	         '/([\(\.\s,])(uid|session|file|access|mode|comment|desc)([,\s\=)])/e',
-                         '/([\(\.\s,])(uid|session|file|access|mode|comment|desc)$/e');
+		                 "/(\:)(uid|session|file|access|mode|comment|desc|size)/e",
+			   	         "/(<uid>|<session>|<file>|<access>|<mode>|<comment>|<desc>|<size>)/e",
+			   	         '/([\(\.\s,])(uid|session|file|access|mode|comment|desc|size)([,\s\=)])/e',
+                         '/([\(\.\s,])(uid|session|file|access|mode|comment|desc|size)$/e');
 
 	    $replace = array ("'\"\\1'.strtoupper('\\2').'\\3\"'",
 				          "'\"\\1'.strtoupper('\\2').'\\3\"'",
