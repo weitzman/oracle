@@ -874,7 +874,7 @@ class DatabaseLongIdentifierHandler_oracle
 		    
 		    while ($row= $result->fetchObject())
 		    {
-		    	  $this->searchLongIdentifiers[]= "/".$row->identifier."/i";
+		    	  $this->searchLongIdentifiers[]= '/\b'.$row->identifier.'\b/i';
 		    	  $this->replaceLongIdentifiers[]= ORACLE_LONG_IDENTIFIER_PREFIX.$row->id;
 		    	  $this->hashLongIdentifiers[ORACLE_LONG_IDENTIFIER_PREFIX.$row->id]= strtolower($row->identifier);
 		    }
