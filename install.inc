@@ -1,5 +1,4 @@
 <?php
-// $Id$
 
 // Oracle specific install functions
 
