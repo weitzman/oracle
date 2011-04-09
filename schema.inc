@@ -52,17 +52,29 @@ class DatabaseSchema_oracle extends DatabaseSchema {
   public function getTableInfo($table) {
       $schema= $this->tableSchema($this->connection->prefixTables('{' . strtoupper($table) . '}',true));
       
-  	  if (!isset(DatabaseSchema_oracle::$tableInformation[$schema."|".$table]))
-  	  {  	  	
-  	  	  ////syslog(LOG_ERR,"non cached: ".$table);
-  	      $info= new stdClass();
-  	      $info->{"sequence_name"} = $this->connection->oracleQuery("select identifier.sequence_for_table(?,?) sequence_name from dual",array(strtoupper($table),$schema))->fetchColumn();
-  	      
-  	      DatabaseSchema_oracle::$tableInformation[$schema."|".$table]= $info;
-  	  }
-  	  else
-  	    $info= DatabaseSchema_oracle::$tableInformation[$schema."|".$table];
+  	  $info= new stdClass();
   	  
+      try
+      {
+	  	  if (!isset(DatabaseSchema_oracle::$tableInformation[$schema."|".$table]))
+	  	  {  	  	
+	  	  	  ////syslog(LOG_ERR,"non cached: ".$table);
+	  	      $info->{"sequence_name"} = $this->connection->oracleQuery("select identifier.sequence_for_table(?,?) sequence_name from dual",array(strtoupper($table),$schema))->fetchColumn();
+	  	      
+	  	      DatabaseSchema_oracle::$tableInformation[$schema."|".$table]= $info;
+	  	  }
+	  	  else
+	  	    $info= DatabaseSchema_oracle::$tableInformation[$schema."|".$table];
+  	  }
+  	  catch (PDOException $ex)
+  	  {
+  	      if ($ex->errorInfo[1]=='00904')
+  	      {
+  	         // ignore (may be a connection to a non drupal schema not having the identifier pkg see http://drupal.org/node/1121044)
+  	      }
+  	      else
+  	       throw $ex;
+  	  }
   	  ////syslog(LOG_ERR,"info: ".print_r($info,true));
   	    
       return $info;
