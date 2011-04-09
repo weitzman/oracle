@@ -447,7 +447,7 @@ class DatabaseSchema_oracle extends DatabaseSchema {
   	if ($info->sequence_name)
   	  db_query('DROP SEQUENCE '.$info->sequence_name);
   	
-    db_query('DROP TABLE ' . $this->oid($table,true) . ' CASCADE CONSTRAINTS');
+    db_query('DROP TABLE ' . $this->oid($table,true) . ' CASCADE CONSTRAINTS PURGE');
     $this->removeTableInfoCache($table);
   }
 
