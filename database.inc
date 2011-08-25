@@ -352,7 +352,7 @@ class DatabaseConnection_oracle extends DatabaseConnection
          $sql = strtr($sql, array('{'. strtoupper($key) .'}' => $quote.(empty($dp) ? strtoupper($key) : strtoupper($dp) .'"."'. strtoupper($key)).$quote ));
       }
       
-	  $dp= $this->checkDbPrefix($this->defaultPrefix);
+	  $dp= $this->checkDbPrefix($this->tablePrefix());
 	  $ret= strtr($sql, array('{' => $quote.(empty($dp) ? '' : strtoupper($dp). '"."'), '}' => $quote));
       
 	  return $this->escapeAnsi($ret);
