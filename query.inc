@@ -174,7 +174,7 @@ class UpdateQuery_oracle extends UpdateQuery {
     }
 
     if (count($this->condition)) {
-      $this->condition->compile($this->connection);
+      $this->condition->compile($this->connection, $this);
 
       $arguments = $this->condition->arguments();
       foreach ($arguments as $placeholder => $value) {
