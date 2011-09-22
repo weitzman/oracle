@@ -54,6 +54,8 @@ class InsertQuery_oracle extends InsertQuery {
     }
     
     
+    //syslog(LOG_ERR,"insert_values: ".print_r($insert_values,true));
+
     if (count($this->insertValues)==0) // all default query
         $last_insert_id = $this->connection->query($stmt,  array(), $this->queryOptions);
     
@@ -130,6 +132,7 @@ class UpdateQuery_oracle extends UpdateQuery {
 
   private $updateArgs= array();
   private $conditionArgs= array();
+  private $expArgs= array();
   
   private $rowCount= 0;
 
@@ -158,7 +161,8 @@ class UpdateQuery_oracle extends UpdateQuery {
           // We assume that an expression will never happen on a BLOB field,
           // which is a fairly safe assumption to make since in most cases
           // it would be an invalid query anyway.
-          $stmt->bindParam($placeholder, $argument);
+          $this->expArgs[$placeholder]= $this->connection->cleanupArgValue($argument);
+          $stmt->bindParam($placeholder, $this->expArgs[$placeholder]);
         }
       }
       unset($fields[$field]);
@@ -182,6 +186,10 @@ class UpdateQuery_oracle extends UpdateQuery {
         $stmt->bindParam($placeholder, $this->conditionArgs[$placeholder]);
       }
     }
+
+    //syslog(LOG_ERR,'conditionArgs: '.print_r($this->conditionArgs,true));
+    //syslog(LOG_ERR,'updateArgs: '.print_r($this->updateArgs,true));
+    //syslog(LOG_ERR,'expArgs: '.print_r($this->expArgs,true));
 
     $stmt->bindParam('db_sql_rowcount', $this->rowCount, PDO::PARAM_INT|PDO::PARAM_INPUT_OUTPUT, 32);
     

@@ -178,7 +178,7 @@ class DatabaseConnection_oracle extends DatabaseConnection
       
       if ($options['throw_exception'])
       {
-        syslog(LOG_ERR,"error query: ". $query_string .(isset($stmt)&&$stmt instanceof DatabaseStatement_oracle ? " (prepared: ".$stmt->getQueryString()." )" : "")." e: ".$e->getMessage()." args: ".print_r($args,true));
+        syslog(LOG_ERR,"error query: ". $query_string .(isset($stmt)&&$stmt instanceof DatabaseStatement_oracle ? " (prepared: ".$stmt->getQueryString()." )" : "")." e: ".$e->getMessage()." args: ".print_r($args,true)); //." db: ".print_r(debug_backtrace(false),true));
         
         $ex= new PDOException($query_string .(isset($stmt)&&$stmt instanceof DatabaseStatement_oracle ? " (prepared: ".$stmt->getQueryString()." )" : "")." e: ".$e->getMessage()." args: ".print_r($args,true));
         $ex->errorInfo= $e->errorInfo;
@@ -524,9 +524,10 @@ class DatabaseConnection_oracle extends DatabaseConnection
   	    foreach ($args as $key => $value)
   	    {
   	    	 $key= DatabaseConnection_oracle::escapeReserved($key); // bind variables cannot have reserved names
+                 $key= $this->lih->escapeLongIdentifiers($key);
   	    	 $ret[$key]= $this->cleanupArgValue($value);
   	    }
-  	  else
+  	  else // indexed array
    	    foreach ($args as $key => $value)
   	  	  $ret[$key]= $this->cleanupArgValue($value);
   	      
