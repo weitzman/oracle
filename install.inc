@@ -11,10 +11,10 @@ class DatabaseTasks_oracle extends DatabaseTasks {
   }
   
   public function __construct() {
-    $this->tasks = array_merge(array(array(
+    $this->tasks = array(array(
       'function' => 'initializeDatabase',
       'arguments' => array(),
-    )),$this->tasks);
+    ));
 //    syslog(LOG_ERR,"CONSTRUCT");
   }  
   

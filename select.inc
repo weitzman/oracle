@@ -8,6 +8,22 @@ class SelectQuery_oracle extends SelectQuery
     // Create a comments string to prepend to the query.
     $comments = (!empty($this->comments)) ? '/* ' . implode('; ', $this->comments) . ' */ ' : '';
 
+     // expanding group by aliases
+     if ($this->group)
+     foreach ($this->group as $key => &$group_field) 
+     {
+       if (isset($this->fields[$group_field])) 
+       {
+         $field = $this->fields[$group_field];
+         $group_field = (isset($field['table']) ? $field['table'] . '.' : '') . $field['field'];
+       }
+       else if (isset($this->expressions[$group_field])) 
+       {
+         $expression = $this->expressions[$group_field];
+         $group_field = $expression['expression'];
+       }
+     }
+
     // SELECT
     $query = $comments . 'SELECT ';
     if ($this->distinct) {

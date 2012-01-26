@@ -30,10 +30,18 @@ class DatabaseConnection_oracle extends DatabaseConnection
   public $lih;
 
   private $use_cache= false;
+
+  // we are being use to connect to an external oracle database
+  public $external= false;
   
   private $oraclePrefix= array();
 
   private $max_varchar2_bind_size= ORACLE_MIN_PDO_BIND_LENGTH;
+
+  public function oraclePrepare($query, $args=NULL)
+  {
+      return parent::prepare($query);
+  }
 
   // shortcut function to execute statements directly on the database without checks
   public function oracleQuery($query, $args=NULL)
@@ -111,14 +119,15 @@ class DatabaseConnection_oracle extends DatabaseConnection
     }
     catch (Exception $ex)
     {
-       // ignore at install time 
+       // ignore at install time or external databases 
        
        // fallback to minimum bind size
        $this->max_varchar2_bind_size= ORACLE_MIN_PDO_BIND_LENGTH;
+       $this->external= true; // connected to an external oracle database (not necessarly a drupal schema)
     }    
     
     // initialize the long identifier handler
-    $this->lih= new DatabaseLongIdentifierHandler_oracle($this);
+    if (!$this->external) $this->lih= new DatabaseLongIdentifierHandler_oracle($this);
     
     // initialize db_prefix cache
     $this->oraclePrefix= array();
@@ -168,7 +177,7 @@ class DatabaseConnection_oracle extends DatabaseConnection
       if ($this->exceptionQuery($query_string)&&$retried!=1)
   	  	 return $this->query($query_string, $args, $options, 1);
   	  	 
-      if (isset($e->errorInfo)&&is_array($e->errorInfo)&&$e->errorInfo[1]=='00972'&&$retried!=2) // catch long identifier errors for alias columns
+      if (isset($e->errorInfo)&&is_array($e->errorInfo)&&$e->errorInfo[1]=='00972'&&$retried!=2&&!$this->external) // catch long identifier errors for alias columns
       {
           $this->lih->findAndRemoveLongIdentifiers($query_string);
           return $this->query($query_string, $args, $options, 2);
@@ -178,7 +187,7 @@ class DatabaseConnection_oracle extends DatabaseConnection
       
       if ($options['throw_exception'])
       {
-        syslog(LOG_ERR,"error query: ". $query_string .(isset($stmt)&&$stmt instanceof DatabaseStatement_oracle ? " (prepared: ".$stmt->getQueryString()." )" : "")." e: ".$e->getMessage()." args: ".print_r($args,true)); //." db: ".print_r(debug_backtrace(false),true));
+        syslog(LOG_ERR,"error query: ". $query_string .(isset($stmt)&&$stmt instanceof DatabaseStatement_oracle ? " (prepared: ".$stmt->getQueryString()." )" : "")." e: ".$e->getMessage()." args: ".print_r($args,true)." db: ".print_r(debug_backtrace(false),true));
         
         $ex= new PDOException($query_string .(isset($stmt)&&$stmt instanceof DatabaseStatement_oracle ? " (prepared: ".$stmt->getQueryString()." )" : "")." e: ".$e->getMessage()." args: ".print_r($args,true));
         $ex->errorInfo= $e->errorInfo;
@@ -248,7 +257,7 @@ class DatabaseConnection_oracle extends DatabaseConnection
   	  return $this->oracleQuery($this->prefixTables("select ".$name.".currval from dual",true))->fetchColumn();
   	}
   	catch (Exception $ex)
-  	{ /* ignore if CURRVAL not set (may be an insert that specified the serial field) */  }
+  	{ syslog(LOG_ERR," currval: ".print_r(debug_backtrace(false),true)); /* ignore if CURRVAL not set (may be an insert that specified the serial field) */  }
   }
   
   public function queryRange($query, $from, $count, array $args = array(), array $options = array()) {
@@ -360,7 +369,7 @@ class DatabaseConnection_oracle extends DatabaseConnection
   
   public function prepareQuery($query)
   {
-	    $iquery = md5($this->prefixTables($query,true));
+	    $iquery = md5(($this->external ? 'E|' : '').$this->prefixTables($query,true));
 	    
 	    if (empty($this->preparedStatements[$iquery]))
 	    {	    
@@ -377,13 +386,17 @@ class DatabaseConnection_oracle extends DatabaseConnection
             if (!$oquery)
             {	       
         	      $oquery= $query;
-        	      $oquery= $this->escapeEmptyLiterals($oquery);
-        	      $oquery= $this->escapeAnsi($oquery);
-        	      $oquery= $this->lih->escapeLongIdentifiers($oquery);
-        	      $oquery= $this->escapeReserved($oquery);
-        	      $oquery= $this->escapeCompatibility($oquery);
-        	      $oquery= $this->prefixTables($oquery,true);
-        	      $oquery= $this->escapeIfFunction($oquery);
+                  
+                  if (!$this->external)
+                  {
+                      $oquery= $this->escapeEmptyLiterals($oquery);
+                      $oquery= $this->escapeAnsi($oquery);
+                      $oquery= $this->lih->escapeLongIdentifiers($oquery);
+                      $oquery= $this->escapeReserved($oquery);
+                      $oquery= $this->escapeCompatibility($oquery);
+                      $oquery= $this->prefixTables($oquery,true);
+                      $oquery= $this->escapeIfFunction($oquery);
+                  }
         	      
                   if ($this->use_cache)
                     cache_set($iquery,$oquery,'cache_oracle');
@@ -518,6 +531,8 @@ class DatabaseConnection_oracle extends DatabaseConnection
   
   public function cleanupArgs($args)
   {
+          if ($this->external) return $args;
+
   	  $ret= array();
   	  
   	  if (DatabaseConnection_oracle::is_assoc($args))
@@ -581,7 +596,7 @@ class DatabaseConnection_oracle extends DatabaseConnection
   
   public function resetLongIdentifiers()
   {
-  	 $this->lih->resetLongIdentifiers();
+  	 if (!$this->external) $this->lih->resetLongIdentifiers();
   }
   
   public static function isLongIdentifier($key)
@@ -724,6 +739,8 @@ class DatabaseStatement_oracle extends DatabaseStatementPrefetch implements Iter
    */
   private function cleanupFetched($f)
   {
+            if ($this->dbh->external) return $f;
+
   	    if (is_array($f))
   	      foreach ($f as $key => $value)
   	      {
