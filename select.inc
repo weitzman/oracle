@@ -75,6 +75,7 @@ class SelectQuery_oracle extends SelectQuery
 
     // WHERE
     if (count($this->where)) {
+      if(!$this->where->compiled())
       $this->where->compile($this->connection, $this);
       // There is an implicit string cast on $this->condition.
       $query .= "\nWHERE " . $this->where;
@@ -87,6 +88,7 @@ class SelectQuery_oracle extends SelectQuery
 
     // HAVING
     if (count($this->having)) {
+      if(!$this->having->compiled())
       $this->having->compile($this->connection, $this);
       // There is an implicit string cast on $this->having.
       $query .= "\nHAVING " . $this->having;

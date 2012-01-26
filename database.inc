@@ -43,6 +43,12 @@ class DatabaseConnection_oracle extends DatabaseConnection
       return parent::prepare($query);
   }
 
+  public function makePrimary()
+  {
+      $this->lih= new DatabaseLongIdentifierHandler_oracle($this);
+      $this->external= false; // ok we are installing a primary database
+  }
+
   // shortcut function to execute statements directly on the database without checks
   public function oracleQuery($query, $args=NULL)
   {
@@ -187,7 +193,7 @@ class DatabaseConnection_oracle extends DatabaseConnection
       
       if ($options['throw_exception'])
       {
-        syslog(LOG_ERR,"error query: ". $query_string .(isset($stmt)&&$stmt instanceof DatabaseStatement_oracle ? " (prepared: ".$stmt->getQueryString()." )" : "")." e: ".$e->getMessage()." args: ".print_r($args,true)." db: ".print_r(debug_backtrace(false),true));
+        syslog(LOG_ERR,"error query: ". $query_string .(isset($stmt)&&$stmt instanceof DatabaseStatement_oracle ? " (prepared: ".$stmt->getQueryString()." )" : "")." e: ".$e->getMessage()." args: ".print_r($args,true));//." db: ".print_r(debug_backtrace(false),true));
         
         $ex= new PDOException($query_string .(isset($stmt)&&$stmt instanceof DatabaseStatement_oracle ? " (prepared: ".$stmt->getQueryString()." )" : "")." e: ".$e->getMessage()." args: ".print_r($args,true));
         $ex->errorInfo= $e->errorInfo;
@@ -396,6 +402,7 @@ class DatabaseConnection_oracle extends DatabaseConnection
                       $oquery= $this->escapeCompatibility($oquery);
                       $oquery= $this->prefixTables($oquery,true);
                       $oquery= $this->escapeIfFunction($oquery);
+                      $oquery= $this->escapeTableAlias($oquery);
                   }
         	      
                   if ($this->use_cache)
@@ -418,6 +425,19 @@ class DatabaseConnection_oracle extends DatabaseConnection
   
   public function PDOPrepare($query, array $options = array()) {
     return parent::prepare($query, $options);
+  }
+
+  private function escapeTableAlias($query)
+  {
+      $search = array ('/(FROM|JOIN|from|join) ({\w+})( AS | as )/e', // Replaces all FROM table AS alias to FROM table alias
+                       '/(FROM|JOIN|from|join) (\(.+\))( AS )/e' // Replaces all FROM (SELECT table) AS alias to FROM (SELECT table) alias
+                      );
+ 
+      $replace = array ("'\\1'.' '.'\\2'.' '.'\\4'",
+                        "'\\1'.' '.'\\2'.' '.'\\4'"
+                       );
+ 
+      return preg_replace($search, $replace, $query);  	
   }
   
   private function escapeAnsi($query)
@@ -460,12 +480,13 @@ class DatabaseConnection_oracle extends DatabaseConnection
   
   private function escapeReserved($query)
   {
+        $ddl= !((boolean)preg_match('/^(select|insert|update|delete)/i',$query));
         $search = array ("/({)(\w+)(})/e", // escapes all table names
                          "/({L#)([0-9]+)(})/e", // escapes long id
-		                 "/(\:)(uid|session|file|access|mode|comment|desc|size)/e",
-			   	         "/(<uid>|<session>|<file>|<access>|<mode>|<comment>|<desc>|<size>)/e",
-			   	         '/([\(\.\s,])(uid|session|file|access|mode|comment|desc|size)([,\s\=)])/e',
-                         '/([\(\.\s,])(uid|session|file|access|mode|comment|desc|size)$/e');
+		                 "/(\:)(uid|session|file|access|mode|comment|desc|size|start|end)/e",
+			   	         "/(<uid>|<session>|<file>|<access>|<mode>|<comment>|<desc>|<size>".($ddl?'':'|<date>').")/e",
+			   	         '/([\(\.\s,\=])(uid|session|file|access|mode|comment|desc|size'.($ddl?'':'|date').')([,\s\=)])/e',
+                         '/([\(\.\s,])(uid|session|file|access|mode|comment|desc|size'.($ddl?'':'|date').')$/e');
 
 	    $replace = array ("'\"\\1'.strtoupper('\\2').'\\3\"'",
 				          "'\"\\1'.strtoupper('\\2').'\\3\"'",

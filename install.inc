@@ -43,6 +43,8 @@ class DatabaseTasks_oracle extends DatabaseTasks {
       $this->oracle_query("begin dbms_utility.compile_schema(user); end;");
    
   	  $this->pass(st('Oracle has initialized itself.'));
+        
+          Database::getConnection('default')->makePrimary();
 
     }
     catch (Exception $e)
