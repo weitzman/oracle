@@ -490,9 +490,8 @@ class DatabaseSchema_oracle extends DatabaseSchema {
     
     if (isset($spec['initial'])) {
       // All this because db_query does not support %-placeholders.
-      $sql = 'UPDATE ' . $this->oid($table,true) . ' SET ' . $this->oid($field) . ' = ' . db_type_placeholder($spec['type']);
-      $result = db_query($sql, $spec['initial']);
-      
+      $sql = 'UPDATE ' . $this->oid($table,true) . ' SET ' . $this->oid($field) . ' = :initial_value';
+      $result = db_query($sql, array( 'initial_value' => $spec['initial'] ));
     }
     
     if ($fixnull) {
