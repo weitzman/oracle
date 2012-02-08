@@ -402,7 +402,6 @@ class DatabaseConnection_oracle extends DatabaseConnection
                       $oquery= $this->escapeCompatibility($oquery);
                       $oquery= $this->prefixTables($oquery,true);
                       $oquery= $this->escapeIfFunction($oquery);
-                      $oquery= $this->escapeTableAlias($oquery);
                   }
         	      
                   if ($this->use_cache)
@@ -427,19 +426,7 @@ class DatabaseConnection_oracle extends DatabaseConnection
     return parent::prepare($query, $options);
   }
 
-  private function escapeTableAlias($query)
-  {
-      $search = array ('/(FROM|JOIN|from|join) ({\w+})( AS | as )/e', // Replaces all FROM table AS alias to FROM table alias
-                       '/(FROM|JOIN|from|join) (\(.+\))( AS )/e' // Replaces all FROM (SELECT table) AS alias to FROM (SELECT table) alias
-                      );
  
-      $replace = array ("'\\1'.' '.'\\2'.' '.'\\4'",
-                        "'\\1'.' '.'\\2'.' '.'\\4'"
-                       );
- 
-      return preg_replace($search, $replace, $query);  	
-  }
-  
   private function escapeAnsi($query)
   {
   	
