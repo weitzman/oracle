@@ -393,7 +393,9 @@ class DatabaseConnection_oracle extends DatabaseConnection
             {	       
         	      $oquery= $query;
                   
-                  if (!$this->external)
+                  if ($this->external)
+                      $oquery= $this->prefixTables($oquery,true);
+                  else
                   {
                       $oquery= $this->escapeEmptyLiterals($oquery);
                       $oquery= $this->escapeAnsi($oquery);
