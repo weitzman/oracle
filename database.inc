@@ -393,18 +393,16 @@ class DatabaseConnection_oracle extends DatabaseConnection
             {	       
         	      $oquery= $query;
                   
-                  if ($this->external)
-                      $oquery= $this->prefixTables($oquery,true);
-                  else
-                  {
-                      $oquery= $this->escapeEmptyLiterals($oquery);
-                      $oquery= $this->escapeAnsi($oquery);
-                      $oquery= $this->lih->escapeLongIdentifiers($oquery);
-                      $oquery= $this->escapeReserved($oquery);
-                      $oquery= $this->escapeCompatibility($oquery);
-                      $oquery= $this->prefixTables($oquery,true);
-                      $oquery= $this->escapeIfFunction($oquery);
-                  }
+                  $oquery= $this->escapeEmptyLiterals($oquery);
+                  $oquery= $this->escapeAnsi($oquery);
+
+                  if (!$this->external) 
+                    $oquery= $this->lih->escapeLongIdentifiers($oquery);
+
+                  $oquery= $this->escapeReserved($oquery);
+                  $oquery= $this->escapeCompatibility($oquery);
+                  $oquery= $this->prefixTables($oquery,true);
+                  $oquery= $this->escapeIfFunction($oquery);
         	      
                   if ($this->use_cache)
                     cache_set($iquery,$oquery,'cache_oracle');
