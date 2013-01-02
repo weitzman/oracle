@@ -171,7 +171,7 @@ class DatabaseSchema_oracle extends DatabaseSchema {
 	    	$fldname_ser= $this->oid($field_name,false,false);
 	    	
 	        $statements[] = 'CREATE SEQUENCE '.$seqname.($start_with!=1 ? ' START WITH '.$start_with : '');
-	        $statements[] = 'CREATE OR REPLACE TRIGGER '.$trgname.' before insert on '. $oname .'    for each row begin   /* serial('.$tblname_ser.','.$trgname_ser.','.$seqname_ser.','.$fldname_ser.') */  if inserting then       if :NEW.'. $ofield_name .' is null or :NEW.'. $ofield_name .' = 0 then   select '. $seqname .'.nextval into :NEW.'. $ofield_name .' from dual;       end if;    end if; end;';
+	        $statements[] = 'CREATE OR REPLACE TRIGGER '.$trgname.' before insert on '. $oname .'    for each row declare v_id number:= 0; begin   /* serial('.$tblname_ser.','.$trgname_ser.','.$seqname_ser.','.$fldname_ser.') */  if inserting then       if :NEW.'. $ofield_name .' is null or :NEW.'. $ofield_name .' = 0 then   select '. $seqname .'.nextval into :NEW.'. $ofield_name .' from dual;  else while v_id < :NEW.'. $ofield_name .' loop select '. $seqname .'.nextval into v_id from dual; end loop;    end if;    end if; end;';
 	        $statements[] = 'ALTER TRIGGER '.$trgname.' ENABLE';
 	        
 	        return $statements; 
@@ -490,9 +490,8 @@ class DatabaseSchema_oracle extends DatabaseSchema {
     
     if (isset($spec['initial'])) {
       // All this because db_query does not support %-placeholders.
-      $sql = 'UPDATE ' . $this->oid($table,true) . ' SET ' . $this->oid($field) . ' = ' . db_type_placeholder($spec['type']);
-      $result = db_query($sql, $spec['initial']);
-      
+      $sql = 'UPDATE ' . $this->oid($table,true) . ' SET ' . $this->oid($field) . ' = :initial_value';
+      $result = db_query($sql, array( 'initial_value' => $spec['initial'] ));
     }
     
     if ($fixnull) {

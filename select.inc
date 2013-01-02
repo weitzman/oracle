@@ -8,6 +8,22 @@ class SelectQuery_oracle extends SelectQuery
     // Create a comments string to prepend to the query.
     $comments = (!empty($this->comments)) ? '/* ' . implode('; ', $this->comments) . ' */ ' : '';
 
+     // expanding group by aliases
+     if ($this->group)
+     foreach ($this->group as $key => &$group_field) 
+     {
+       if (isset($this->fields[$group_field])) 
+       {
+         $field = $this->fields[$group_field];
+         $group_field = (isset($field['table']) ? $field['table'] . '.' : '') . $field['field'];
+       }
+       else if (isset($this->expressions[$group_field])) 
+       {
+         $expression = $this->expressions[$group_field];
+         $group_field = $expression['expression'];
+       }
+     }
+
     // SELECT
     $query = $comments . 'SELECT ';
     if ($this->distinct) {
@@ -59,6 +75,7 @@ class SelectQuery_oracle extends SelectQuery
 
     // WHERE
     if (count($this->where)) {
+      if(!$this->where->compiled())
       $this->where->compile($this->connection, $this);
       // There is an implicit string cast on $this->condition.
       $query .= "\nWHERE " . $this->where;
@@ -71,6 +88,7 @@ class SelectQuery_oracle extends SelectQuery
 
     // HAVING
     if (count($this->having)) {
+      if(!$this->having->compiled())
       $this->having->compile($this->connection, $this);
       // There is an implicit string cast on $this->having.
       $query .= "\nHAVING " . $this->having;
