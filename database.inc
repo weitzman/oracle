@@ -384,6 +384,7 @@ class DatabaseConnection_oracle extends DatabaseConnection
         	      $oquery= $this->escapeCompatibility($oquery);
         	      $oquery= $this->prefixTables($oquery,true);
         	      $oquery= $this->escapeIfFunction($oquery);
+        	      $oquery= $this->escapeLongIn($oquery);
         	      
                   if ($this->use_cache)
                     cache_set($iquery,$oquery,'cache_oracle');
@@ -406,7 +407,45 @@ class DatabaseConnection_oracle extends DatabaseConnection
   public function PDOPrepare($query, array $options = array()) {
     return parent::prepare($query, $options);
   }
+
+  private function escapeLongInHelper($match)
+  {
+    $in= preg_split('/,/',$match[1]);
+    $retval= $match[0];
+
+    if (count($in)>1000)
+    {
+      $vals= "";
+      $cnt= count($in);
+      $icnt= $cnt;
+      //syslog(LOG_ERR,"cnt: ".$cnt);
+      $start= 0;
+
+      while ($cnt>0) 
+      {
+         $arg100= ""; 
+         $x= 0;
+         for ($x=$start;$x<($start+100)&&$x<$icnt;$x++)
+            $arg100.= ",".$in[$x];
+         $vals.= ",vargs(".substr($arg100,1).")";
+         //syslog(LOG_ERR,"x: ".$x);
+         $cnt-= $x-$start;
+         $start= $x;
+         //syslog(LOG_ERR,"start: ".$start);
+      }
+
+      $retval= "IN (select * from table(identifier.longin(vargst(".substr($vals,1)."))))";
+      
+    }     
+
+    return $retval;
+  }
   
+  private function escapeLongIn($query)
+  {
+      return preg_replace_callback("/IN \((.*?)\)/",array($this,'escapeLongInHelper'),$query);
+  }
+
   private function escapeAnsi($query)
   {
   	
