@@ -422,7 +422,7 @@ class DatabaseSchema_oracle extends DatabaseSchema {
     
   	if (isset($info->sequence_name)&&$info->sequence_name)
   	{
-  	    $statements= $this->createSerialSql($table,$info->field_name,$info->sequence_restart);
+  	    $statements= $this->createSerialSql($new_name,$info->field_name,$info->sequence_restart);
   	    
   	    foreach ($statements as $statement)
   	     db_query($statement);
