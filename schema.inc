@@ -262,36 +262,35 @@ class DatabaseSchema_oracle extends DatabaseSchema {
    *    The field specification, as per the schema data structure format.
    */
   protected function createFieldSql($name, $spec) {
-  	$oname= $this->oid($name);
-    
-  	$sql = $oname . ' ' . $spec['oracle_type'];
+    $oname= $this->oid($name);
+  
+    $sql = $oname . ' ' . $spec['oracle_type'];
 
     if ($spec['type'] == 'serial') {
       unset($spec['not null']);
     }
-    
-    
-    if ($spec['oracle_type']=='varchar2')
-    {
+  
+  
+    if ($spec['oracle_type'] == 'varchar2') {
       $sql .= '('.(!empty($spec['length']) ? $spec['length'] : ORACLE_MAX_VARCHAR2_LENGTH ).' CHAR)';
     }
-    elseif (!empty($spec['length'])) {
-      $sql .= '(' . $spec['length'] . ')';
+    else if ($spec['oracle_type'] == 'char') {
+      $sql .= '('.(!empty($spec['length']) ? $spec['length'] : ORACLE_MAX_CHAR_LENGTH ).' CHAR)';
     }
-    elseif (isset($spec['precision']) && isset($spec['scale'])) {
+
+    if ($spec['type'] == 'numeric' && isset($spec['precision']) && isset($spec['scale'])) {
       $sql .= '(' . $spec['precision'] . ', ' . $spec['scale'] . ')';
     }
 
-    if (isset($spec['default'])) {
+    if (isset($spec['default']) && $spec['type'] != 'text') {
       $default = is_string($spec['default']) ? $this->connection->quote($this->connection->cleanupArgValue($spec['default'])) : $spec['default'];
-      
       $sql .= " default $default";
     }
 
     if (isset($spec['not null']) && $spec['not null']) {
       $sql .= ' NOT NULL';
     }
-    
+
     if (!empty($spec['unsigned'])) {
       $sql .= " CHECK ($oname >= 0)";
     }
@@ -427,6 +426,9 @@ class DatabaseSchema_oracle extends DatabaseSchema {
   	    foreach ($statements as $statement)
   	     db_query($statement);
   	}
+  	
+  	// Update blob_column table for new table name
+	db_query("UPDATE blob_column SET table_name = :new_table where table_name = :old_table", array( "new_table" => strtoupper($this->oid($new_name,false,false)), "old_table" => strtoupper($this->oid($table,false,false))));
     
     $this->renameIndexes($table,$new_name);
     $this->resetLongIdentifiers();
@@ -448,6 +450,10 @@ class DatabaseSchema_oracle extends DatabaseSchema {
   	  db_query('DROP SEQUENCE '.$info->sequence_name);
   	
     db_query('DROP TABLE ' . $this->oid($table,true) . ' CASCADE CONSTRAINTS PURGE');
+
+    // Delete blob_column table for table name
+	db_query("DELETE from blob_column where table_name = :table", array( "table" => strtoupper($this->oid($table,false,false))));
+
     $this->removeTableInfoCache($table);
   }
 
@@ -514,6 +520,9 @@ class DatabaseSchema_oracle extends DatabaseSchema {
   	    foreach ($statements as $statement)
   	     db_query($statement);	
     }
+    else if ($spec['type'] == 'blob') {
+		db_query("INSERT INTO BLOB_COLUMN VALUES (:tablename, :columnname)", array("tablename" => $this->oid($table,false,false), "columnname" => $this->oid($field,false,false)));
+	}
 	    
     $this->resetLongIdentifiers();
     $this->removeTableInfoCache($table);
@@ -542,6 +551,9 @@ class DatabaseSchema_oracle extends DatabaseSchema {
     try
     {	
 	    db_query('ALTER TABLE ' . $this->oid($table,true) . ' DROP COLUMN ' . $this->oid($field));
+	    // Delete blob_column table for table name
+ 	    db_query("DELETE from blob_column where table_name = :tablename and column_name = :columnname", array( "tablename" => strtoupper($this->oid($table,false,false)), "columnname" => strtoupper($this->oid($field,false,false))));
+
 	    $this->resetLongIdentifiers();
 	    $this->removeTableInfoCache($table);
 	    $this->rebuildDefaultsTrigger($table);

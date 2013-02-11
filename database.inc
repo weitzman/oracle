@@ -11,6 +11,7 @@ define('ORACLE_IDENTIFIER_MAX_LENGTH',30); // maximum oracle identifier length (
 define('ORACLE_LONG_IDENTIFIER_PREFIX','L#'); // prefix used for long identifier keys
 define('ORACLE_BLOB_PREFIX','B^#'); // prefix used for BLOB values
 define('ORACLE_MAX_VARCHAR2_LENGTH',4000); // maximum length for a string value in a table column in oracle (affects schema.inc table creation)
+define('ORACLE_MAX_CHAR_LENGTH',2000); // maximum length for a string value in a table column in oracle (affects schema.inc table creation)
 define('ORACLE_MIN_PDO_BIND_LENGTH',665); // maximum length of a string that PDO_OCI can handle (affects runtime blob creation) @FIXME this should be 4000 once PDO_OCI is fixed
 define('ORACLE_ROWNUM_ALIAS','RWN_TO_REMOVE'); // alias used for queryRange filtering (we have to remove that from resultsets)
 
@@ -507,10 +508,10 @@ class DatabaseConnection_oracle extends DatabaseConnection
         $ddl= !((boolean)preg_match('/^(select|insert|update|delete)/i',$query));
         $search = array ("/({)(\w+)(})/e", // escapes all table names
                          "/({L#)([0-9]+)(})/e", // escapes long id
-		                 "/(\:)(uid|session|file|access|mode|comment|desc|size|start|end)/e",
-			   	         "/(<uid>|<session>|<file>|<access>|<mode>|<comment>|<desc>|<size>".($ddl?'':'|<date>').")/e",
-			   	         '/([\(\.\s,\=])(uid|session|file|access|mode|comment|desc|size'.($ddl?'':'|date').')([,\s\=)])/e',
-                         '/([\(\.\s,])(uid|session|file|access|mode|comment|desc|size'.($ddl?'':'|date').')$/e');
+		                 "/(\:)(uid|level|session|file|access|mode|comment|desc|size|start|end)/e",
+			   	         "/(<uid>|<level>|<session>|<file>|<access>|<mode>|<comment>|<desc>|<size>".($ddl?'':'|<date>').")/e",
+			   	         '/([\(\.\s,\=])(uid|level|session|file|access|mode|comment|desc|size'.($ddl?'':'|date').')([,\s\=)])/e',
+                         '/([\(\.\s,])(uid|level|session|file|access|mode|comment|desc|size'.($ddl?'':'|date').')$/e');
 
 	    $replace = array ("'\"\\1'.strtoupper('\\2').'\\3\"'",
 				          "'\"\\1'.strtoupper('\\2').'\\3\"'",
