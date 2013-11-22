@@ -1,36 +1,45 @@
 <?php
 
-class SelectQuery_oracle extends SelectQuery
-{
+/**
+ * @file
+ * Definition of Drupal\Core\Database\Driver\oracle\Select
+ */
 
- public function __toString() {
+namespace Drupal\Core\Database\Driver\oracle;
 
+use Drupal\Core\Database\Query\Select as QuerySelect;
+
+/**
+ * @addtogroup database
+ * @{
+ */
+
+class Select extends QuerySelect {
+  public function __toString() {
     // Create a comments string to prepend to the query.
     $comments = (!empty($this->comments)) ? '/* ' . implode('; ', $this->comments) . ' */ ' : '';
 
-     // expanding group by aliases
-     if ($this->group)
-     foreach ($this->group as $key => &$group_field) 
-     {
-       if (isset($this->fields[$group_field])) 
-       {
-         $field = $this->fields[$group_field];
-         $group_field = (isset($field['table']) ? $field['table'] . '.' : '') . $field['field'];
-       }
-       else if (isset($this->expressions[$group_field])) 
-       {
-         $expression = $this->expressions[$group_field];
-         $group_field = $expression['expression'];
-       }
-     }
+    // expanding group by aliases
+    if ($this->group) {
+      foreach ($this->group as $key => &$group_field) {
+        if (isset($this->fields[$group_field])) {
+          $field = $this->fields[$group_field];
+          $group_field = (isset($field['table']) ? $field['table'] . '.' : '') . $field['field'];
+        }
+        else if (isset($this->expressions[$group_field])) {
+          $expression = $this->expressions[$group_field];
+          $group_field = $expression['expression'];
+        }
+      }
+    }
 
-    // SELECT
+    // SELECT.
     $query = $comments . 'SELECT ';
     if ($this->distinct) {
       $query .= 'DISTINCT ';
     }
 
-    // FIELDS and EXPRESSIONS
+    // FIELDS and EXPRESSIONS.
     $fields = array();
     foreach ($this->tables as $alias => $table) {
       if (!empty($table['all_fields'])) {
@@ -43,10 +52,20 @@ class SelectQuery_oracle extends SelectQuery
       $fields[] = (isset($field['table']) ? $field['table'] . '.' : '') . $field['field'] . ' AS ' . $field['alias'];
     }
     foreach ($this->expressions as $alias => $expression) {
-      $fields[] = $expression['expression'] . ' AS ' . $expression['alias'];
+      // Check if it isn't comparison expression. If it is so the we need to
+      // replace it CASE..WHEN..THEN construction.
+      $expression_string = $expression['expression'];
+      if (preg_match("/^(.*?)([<>=!]{1,})(.*)$/", $expression['expression'], $matches)) {
+        $matches = array_map('trim', $matches);
+        $matches = array_filter($matches);
+        if (count($matches) == 4) {
+          $expression_string = "CASE\nWHEN " . $matches[1] . $matches[2] . $matches[3] . " THEN 1\nELSE 0\nEND\n";
+        }
+      }
+
+      $fields[] = $expression_string . ' AS ' . $expression['alias'];
     }
     $query .= implode(', ', $fields);
-
 
     // FROM - We presume all queries have a FROM, as any query that doesn't won't need the query builder anyway.
     $query .= "\nFROM ";
@@ -73,7 +92,7 @@ class SelectQuery_oracle extends SelectQuery
       }
     }
 
-    // WHERE
+    // WHERE.
     if (count($this->where)) {
       if(!$this->where->compiled())
       $this->where->compile($this->connection, $this);
@@ -81,12 +100,12 @@ class SelectQuery_oracle extends SelectQuery
       $query .= "\nWHERE " . $this->where;
     }
 
-    // GROUP BY
+    // GROUP BY.
     if ($this->group) {
       $query .= "\nGROUP BY " . implode(', ', $this->group);
     }
 
-    // HAVING
+    // HAVING.
     if (count($this->having)) {
       if(!$this->having->compiled())
       $this->having->compile($this->connection, $this);
@@ -94,7 +113,7 @@ class SelectQuery_oracle extends SelectQuery
       $query .= "\nHAVING " . $this->having;
     }
 
-    // ORDER BY
+    // ORDER BY.
     if ($this->order) {
       $query .= "\nORDER BY ";
       $fields = array();
@@ -104,7 +123,6 @@ class SelectQuery_oracle extends SelectQuery
       $query .= implode(', ', $fields);
     }
 
-   
     // UNION is a little odd, as the select queries to combine are passed into
     // this query, but syntactically they all end up on the same level.
     if ($this->union) {
@@ -114,13 +132,12 @@ class SelectQuery_oracle extends SelectQuery
     }
 
     if (!empty($this->range)) {
-      $start= ((int)$this->range['start']+1); 
-      $end= ((int)$this->range['length']+(int)$this->range['start']);
+      $start = ((int) $this->range['start'] + 1); 
+      $end = ((int) $this->range['length'] + (int) $this->range['start']);
 
-      $query= 'SELECT * FROM (SELECT TAB.*, ROWNUM '.ORACLE_ROWNUM_ALIAS.' FROM ('. $query .') TAB) WHERE '.ORACLE_ROWNUM_ALIAS.' BETWEEN '. $start . " AND " . $end;
+      $query= 'SELECT * FROM (SELECT TAB.*, ROWNUM ' . ORACLE_ROWNUM_ALIAS . ' FROM (' . $query . ') TAB) WHERE ' . ORACLE_ROWNUM_ALIAS . ' BETWEEN ' . $start . " AND " . $end;
     }
 
     return $query;
   }
-  
 }

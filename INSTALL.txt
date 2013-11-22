@@ -1,0 +1,8 @@
+Few steps to install Drupal with Oracle driver.
+
+1. Download driver to DRUPAL_ROOT/core/lib/Drupal/Core/Database/Driver/oracle.
+
+2. Apply the patch from your DRUPAL_ROOT directory:
+patch -p1 < core/lib/Drupal/Core/Database/Driver/oracle/drupal-core.patch
+
+3. Install Drupal as usual.

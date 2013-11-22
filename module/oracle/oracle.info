@@ -1,5 +1,0 @@
-; $Id
-name = Oracle driver
-description = Administrator interface for the Oracle backend
-package = Database
-core = 7.x
