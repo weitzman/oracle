@@ -24,18 +24,19 @@ class Insert extends QueryInsert {
     $info = $this->connection->schema()->getTableInfo($this->table);
     if (!empty($info->sequence_name)) {
       $this->queryOptions['sequence_name'] = $info->sequence_name;
-			if (class_exists("Database")) {
+      if (class_exists("Database")) {
         $this->queryOptions['return'] = Database::RETURN_INSERT_ID;
-			}
-			else {
+      }
+      else {
         $this->queryOptions['return'] = 3;
-			}
+      }
     }
 
     $stmt = $this->connection->prepareQuery((string) $this);
 
     if (!empty($this->fromQuery)) {
       foreach ($this->fromQuery->getArguments() as $key => $value) {
+				$value = $this->connection->cleanupArgValue($value);
         $stmt->bindParam($key, $value);
       }
       // The SelectQuery may contain arguments, load and pass them through.
@@ -48,19 +49,25 @@ class Insert extends QueryInsert {
     //$transaction = $this->connection->startTransaction();
 
     try {
-      foreach ($this->insertValues as &$insert_values) {
-        $max_placeholder = 0;
-        foreach ($this->insertFields as $idx => $field) {
-          $insert_values[$idx] = $this->connection->cleanupArgValue($insert_values[$idx]);
-          $stmt->bindParam(':db_insert_placeholder_' . $max_placeholder++, $insert_values[$idx]);
+      if (empty($this->insertValues)) {
+        $last_insert_id = $this->connection->query($stmt, array(), $this->queryOptions);
+      }
+      else {
+        foreach ($this->insertValues as &$insert_values) {
+          $max_placeholder = 0;
+          foreach ($this->insertFields as $idx => $field) {
+            $insert_values[$idx] = $this->connection->cleanupArgValue($insert_values[$idx]);
+            $stmt->bindParam(':db_insert_placeholder_' . $max_placeholder++, $insert_values[$idx]);
+          }
+          $last_insert_id = $this->connection->query($stmt, $insert_values, $this->queryOptions);
         }
-        $last_insert_id = $this->connection->query($stmt, $insert_values, $this->queryOptions);
       }
     }
     catch (\Exception $e) {
       // One of the INSERTs failed, rollback the whole batch.
       // @todo look at Connection::startTransaction().
       //$transaction->rollback();
+
       // Rethrow the exception for the calling code.
       throw $e;
     }
@@ -68,19 +75,13 @@ class Insert extends QueryInsert {
     // Re-initialize the values array so that we can re-use this query.
     $this->insertValues = array();
 
-    // Transaction commits here where $transaction looses scope.
-    if ($last_insert_id) {
-      $d = 'sdgh';
-    }
-
-
     return $last_insert_id;
   }
 
   public function __toString() {
     $info = $this->connection->schema()->getTableInfo($this->table);
 
-  	// Default fields are always placed first for consistency.
+    // Default fields are always placed first for consistency.
     $insert_fields = array_merge($this->defaultFields, $this->insertFields);
 
     if (!empty($this->fromQuery)) {
@@ -107,16 +108,16 @@ class Insert extends QueryInsert {
       $values = '(' . implode(', ', $placeholders) . ')';
     }
     else {
-	    if (count($this->defaultFields) > 0) {
+      if (count($this->defaultFields) > 0) {
         // If there are no values, then this is a default-only query.
         // We still need to handle that.
         $placeholders = array_fill(0, count($this->defaultFields), 'default');
         $values = '(' . implode(', ', $placeholders) .')';
-	    }
-	    else {
+      }
+      else {
         // Meaningless query that will not be executed.
-	      $values = '()';
-	    }
+        $values = '()';
+      }
     }
 
     $query .= $values;

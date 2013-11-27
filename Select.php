@@ -11,15 +11,15 @@ use Drupal\Core\Database\Query\Select as QuerySelect;
 
 /**
  * @addtogroup database
- * @{
  */
 
 class Select extends QuerySelect {
-  public function __toString() {
-    // Create a comments string to prepend to the query.
-    $comments = (!empty($this->comments)) ? '/* ' . implode('; ', $this->comments) . ' */ ' : '';
 
-    // expanding group by aliases
+  public function __toString() {
+    // Create a sanitized comment string to prepend to the query.
+    $comments = $this->connection->makeComment($this->comments);
+
+    // Expanding group by aliases.
     if ($this->group) {
       foreach ($this->group as $key => &$group_field) {
         if (isset($this->fields[$group_field])) {
@@ -76,8 +76,8 @@ class Select extends QuerySelect {
       }
 
       // If the table is a subquery, compile it and integrate it into this query.
-      if ($table['table'] instanceof SelectQueryInterface) {
-        $table_string = '(' . (string)$table['table'] . ')';
+      if ($table['table'] instanceof QuerySelect) {
+        $table_string = '(' . (string) $table['table'] . ')';
       }
       else {
         $table_string = '{' . $this->connection->escapeTable($table['table']) . '}';
@@ -94,8 +94,10 @@ class Select extends QuerySelect {
 
     // WHERE.
     if (count($this->where)) {
-      if(!$this->where->compiled())
-      $this->where->compile($this->connection, $this);
+      if(!$this->where->compiled()) {
+        $this->where->compile($this->connection, $this);
+      }
+
       // There is an implicit string cast on $this->condition.
       $query .= "\nWHERE " . $this->where;
     }
@@ -132,7 +134,7 @@ class Select extends QuerySelect {
     }
 
     if (!empty($this->range)) {
-      $start = ((int) $this->range['start'] + 1); 
+      $start = ((int) $this->range['start'] + 1);
       $end = ((int) $this->range['length'] + (int) $this->range['start']);
 
       $query= 'SELECT * FROM (SELECT TAB.*, ROWNUM ' . ORACLE_ROWNUM_ALIAS . ' FROM (' . $query . ') TAB) WHERE ' . ORACLE_ROWNUM_ALIAS . ' BETWEEN ' . $start . " AND " . $end;

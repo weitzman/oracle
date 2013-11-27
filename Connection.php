@@ -7,50 +7,79 @@
 
 namespace Drupal\Core\Database\Driver\oracle;
 
+use Drupal\Core\Database\DatabaseException;
 use Drupal\Core\Database\DatabaseExceptionWrapper;
-
-use Drupal\Core\Database\Database;
+use Drupal\Core\Database\IntegrityConstraintViolationException;
 use Drupal\Core\Database\DatabaseNotFoundException;
 use Drupal\Core\Database\TransactionCommitFailedException;
-use Drupal\Core\Database\DatabaseException;
+
+use Drupal\Core\Database\Database;
 use Drupal\Core\Database\Connection as DatabaseConnection;
 use Drupal\Core\Database\Driver\oracle\StatementBase;
 
 use PDO;
 use PDOStatement;
 
-define('ORACLE_EMPTY_STRING_REPLACER','^'); // used to replace '' character in queries
-define('ORACLE_IDENTIFIER_MAX_LENGTH',30); // maximum oracle identifier length (e.g. table names cannot exceed this length)
-define('ORACLE_LONG_IDENTIFIER_PREFIX','L#'); // prefix used for long identifier keys
-define('ORACLE_BLOB_PREFIX','B^#'); // prefix used for BLOB values
-define('ORACLE_MAX_VARCHAR2_LENGTH',4000); // maximum length for a string value in a table column in oracle (affects schema.inc table creation)
-define('ORACLE_MIN_PDO_BIND_LENGTH', 3999); // maximum length of a string that PDO_OCI can handle (affects runtime blob creation) @FIXME this should be 4000 once PDO_OCI is fixed
-define('ORACLE_ROWNUM_ALIAS','RWN_TO_REMOVE'); // alias used for queryRange filtering (we have to remove that from resultsets)
+/**
+ * Used to replace '' character in queries.
+ */
+define('ORACLE_EMPTY_STRING_REPLACER', '^');
+
+/**
+ * Maximum oracle identifier length (e.g. table names cannot exceed this length).
+ */
+define('ORACLE_IDENTIFIER_MAX_LENGTH', 30);
+
+/**
+ * Prefix used for long identifier keys.
+ */
+define('ORACLE_LONG_IDENTIFIER_PREFIX', 'L#');
+
+/**
+ * Prefix used for BLOB values.
+ */
+define('ORACLE_BLOB_PREFIX', 'B^#');
+
+/**
+ * Maximum length for a string value in a table column in oracle.
+ * Affects schema.inc table creation.
+ */
+define('ORACLE_MAX_VARCHAR2_LENGTH', 4000);
+
+/**
+ * Maximum length of a string that PDO_OCI can handle.
+ * Affects runtime blob creation.
+ */
+define('ORACLE_MIN_PDO_BIND_LENGTH', 4000);
+
+/**
+ * Alias used for queryRange filtering (we have to remove that from resultsets).
+ */
+define('ORACLE_ROWNUM_ALIAS', 'RWN_TO_REMOVE');
 
 /**
  * @addtogroup database
- * @{
  */
 
 class Connection extends DatabaseConnection {
+
   /**
    * Error code for "Unknown database" error.
    */
   const DATABASE_NOT_FOUND = 0;
 
-  // long identifier handler class
-  public $lih;
-
   private $use_cache = FALSE;
 
-  // we are being use to connect to an external oracle database
+  /**
+   * We are being use to connect to an external oracle database.
+   */
   public $external = FALSE;
 
   private $oraclePrefix = array();
 
   private $max_varchar2_bind_size = ORACLE_MIN_PDO_BIND_LENGTH;
 
-  protected $statementClass = 'Drupal\Core\Database\Driver\oracle\StatementBase';
+  protected $statementClass = 'Drupal\Core\Database\Driver\oracle\Statement';
 
   protected $transactionSupport = FALSE;
 
@@ -62,14 +91,14 @@ class Connection extends DatabaseConnection {
     // We don't need a specific PDOStatement class here, we simulate it below.
     //$this->statementClass = 'Drupal\Core\Database\Driver\oracle\Statement';
 
-  	// This driver defaults to transaction support, except if explicitly passed FALSE.
+    // This driver defaults to transaction support, except if explicitly passed FALSE.
     // @todo Disable temporary any transaction.
     //$this->transactionSupport = !isset($connection_options['transactions']) || ($connection_options['transactions'] !== FALSE);
 
-    // Transactional DDL is not available in Oracle,
+    // Transactional DDL is not available in Oracle.
     $this->transactionalDDLSupport = FALSE;
 
-    // needed by DatabaseConnection.getConnectionOptions
+    // Needed by DatabaseConnection.getConnectionOptions
     $this->connectionOptions = $connection_options;
 
     $oracle_user = $connection_options['username'];
@@ -78,27 +107,24 @@ class Connection extends DatabaseConnection {
      * @todo move to open() method or not?
      * This is related to DatabaseLongIdentifierHandler_oracle "magic" class somehow.
      */
-    // setup session attributes
-    try {
-  	   $stmt = parent::prepare("begin ? := setup_session; end;");
-       $stmt->bindParam(1, $this->max_varchar2_bind_size, PDO::PARAM_INT | PDO::PARAM_INPUT_OUTPUT, 32);
 
-       $stmt->execute();
+    // Setup session attributes.
+    try {
+			$stmt = parent::prepare("begin ? := setup_session; end;");
+			$stmt->bindParam(1, $this->max_varchar2_bind_size, PDO::PARAM_INT | PDO::PARAM_INPUT_OUTPUT, 32);
+
+			$stmt->execute();
     }
     catch (\Exception $ex) {
-       // Ignore at install time or external databases.
-       // Fallback to minimum bind size.
-       $this->max_varchar2_bind_size = ORACLE_MIN_PDO_BIND_LENGTH;
-       // Connected to an external oracle database (not necessarly a drupal schema).
-       $this->external = TRUE;
+			// Ignore at install time or external databases.
+			// Fallback to minimum bind size.
+			$this->max_varchar2_bind_size = ORACLE_MIN_PDO_BIND_LENGTH;
+
+			// Connected to an external oracle database (not necessarly a drupal schema).
+			$this->external = TRUE;
     }
 
-    // Initialize the long identifier handler.
-    if (!$this->external) {
-      $this->lih = new DatabaseLongIdentifierHandlerOracle($this);
-    }
-
-    // initialize db_prefix cache
+    // Initialize db_prefix cache.
     $this->oraclePrefix = array();
   }
 
@@ -111,11 +137,12 @@ class Connection extends DatabaseConnection {
       $connection_options['port'] = 1521;
     }
 
-    // Use database as TNSNAME
     if ($connection_options['host'] == 'USETNS') {
+			// Use database as TNSNAME.
       $dsn = 'oci:dbname=' . $connection_options['database'] . ';charset=AL32UTF8';
     }
-    else { // Use host/port/database
+    else {
+      // Use host/port/database.
       $dsn = 'oci:dbname=//' . $connection_options['host'] . ':' . $connection_options['port'] . '/' . $connection_options['database'] . ';charset=AL32UTF8';
     }
 
@@ -123,6 +150,7 @@ class Connection extends DatabaseConnection {
     $connection_options += array(
       'pdo' => array(),
     );
+
     $connection_options['pdo'] += array(
       PDO::ATTR_STRINGIFY_FETCHES => TRUE,
       PDO::ATTR_CASE => PDO::CASE_LOWER,
@@ -137,7 +165,7 @@ class Connection extends DatabaseConnection {
   public function query($query, array $args = array(), $options = array(), $retried = 0) {
     global $oracle_debug;
 
-  	// Use default values if not already set.
+    // Use default values if not already set.
     $options += $this->defaultOptions();
 
     try {
@@ -146,7 +174,7 @@ class Connection extends DatabaseConnection {
         $stmt->execute(empty($args) ? NULL : (array) $args, $options);
       }
       else {
-      	$modified = $this->expandArguments($query, $args);
+        $this->expandArguments($query, $args);
         $stmt = $this->prepareQuery($query);
         $stmt->execute($this->cleanupArgs($args), $options);
       }
@@ -164,41 +192,42 @@ class Connection extends DatabaseConnection {
           throw new PDOException('Invalid return directive: ' . $options['return']);
       }
     }
-    catch (PDOException $e) {
-      if ($query instanceof PDOStatement) {
-        $query_string = $stmt->queryString;
-      }
-      else {
-        $query_string = $query;
-      }
+    catch (\Exception $e) {
+      $query_string = ($query instanceof PDOStatement) ? $stmt->queryString : $query;
 
       if ($this->exceptionQuery($query_string) && $retried != 1) {
-  	  	return $this->query($query_string, $args, $options, 1);
+        return $this->query($query_string, $args, $options, 1);
       }
 
       // Catch long identifier errors for alias columns.
-      if (isset($e->errorInfo) && is_array($e->errorInfo) && $e->errorInfo[1] == '00972' && $retried !=2 && !$this->external) {
-        $this->lih->findAndRemoveLongIdentifiers($query_string);
+      if (isset($e->errorInfo) && is_array($e->errorInfo) && $e->errorInfo[1] == '00972' && $retried != 2 && !$this->external) {
+        $this->getLongIdentifiersHandler()->findAndRemoveLongIdentifiers($query_string);
         return $this->query($query_string, $args, $options, 2);
       }
 
       try {
         $this->rollBack();
       }
-      catch (Exception $rex) {
+      catch (\Exception $rex) {
         syslog(LOG_ERR, "rollback ex: " . $rex->getMessage());
       }
 
       if ($options['throw_exception']) {
-        syslog(LOG_ERR, "error query: " . $query_string . (isset($stmt) && $stmt instanceof DatabaseStatementOracle ? " (prepared: ".$stmt->getQueryString() . " )" : "") . " e: " . $e->getMessage() . " args: " . print_r($args, TRUE));
+        $message = $query_string . (isset($stmt) && $stmt instanceof DatabaseStatementOracle ? " (prepared: ".$stmt->getQueryString() . " )" : "") . " e: " . $e->getMessage() . " args: " . print_r($args, TRUE);
+        syslog(LOG_ERR, "error query: " . $message);
 
-        $ex = new PDOException($query_string . (isset($stmt) && $stmt instanceof DatabaseStatementOracle ? " (prepared: " . $stmt->getQueryString() . " )" : "") . " e: " . $e->getMessage() . " args: " . print_r($args, TRUE));
-        $ex->errorInfo = $e->errorInfo;
-
-        if ($ex->errorInfo[1] == '1') {
-        	$ex->errorInfo[0] = '23000';
+        if (strpos($e->getMessage(), 'ORA-00001')) {
+          $exception = new IntegrityConstraintViolationException($message, (int) $e->getCode(), $e);
         }
-        throw $ex;
+        else {
+          $exception = new DatabaseExceptionWrapper($message, (int) $e->getCode(), $e);
+        }
+        $exception->errorInfo = $e->errorInfo;
+
+        if ($exception->errorInfo[1] == '1') {
+          $exception->errorInfo[0] = '23000';
+        }
+        throw $exception;
       }
 
       return NULL;
@@ -211,13 +240,13 @@ class Connection extends DatabaseConnection {
 
     $query_string = 'SELECT * FROM (SELECT TAB.*, ROWNUM ' . ORACLE_ROWNUM_ALIAS . ' FROM (' . $query . ') TAB) WHERE ' . ORACLE_ROWNUM_ALIAS . ' BETWEEN ';
     if (Connection::isAssoc($args)) {
-    	$args['oracle_rwn_start'] = $start;
-    	$args['oracle_rwn_end'] = $end;
+      $args['oracle_rwn_start'] = $start;
+      $args['oracle_rwn_end'] = $end;
       $query_string .= ':oracle_rwn_start AND :oracle_rwn_end';
     }
     else {
-    	$args[] = $start;
-    	$args[] = $end;
+      $args[] = $start;
+      $args[] = $end;
       $query_string .= '? AND ?';
     }
 
@@ -229,7 +258,7 @@ class Connection extends DatabaseConnection {
     try {
       db_query("DROP TABLE {". $tablename ."}");
     }
-    catch (Exception $ex) {
+    catch (\Exception $ex) {
       /* ignore drop errors */
     }
     $this->query('CREATE GLOBAL TEMPORARY TABLE {' . $tablename . '} ON COMMIT PRESERVE ROWS AS ' . $query, $args, $options);
@@ -285,7 +314,9 @@ class Connection extends DatabaseConnection {
     return $id;
   }
 
-  // Help method to check if array is associative.
+  /**
+   * Help method to check if array is associative.
+   */
   public static function isAssoc($array) {
     return (is_array($array) && 0 !== count(array_diff_key($array, array_keys(array_keys($array)))));
   }
@@ -295,12 +326,12 @@ class Connection extends DatabaseConnection {
   }
 
   public function makePrimary() {
-    $this->lih = new DatabaseLongIdentifierHandlerOracle($this);
-    $this->external = FALSE; // ok we are installing a primary database.
+    // We are installing a primary database.
+    $this->external = FALSE;
   }
 
   public function oracleQuery($query, $args = NULL) {
-  	$stmt = parent::prepare($query);
+    $stmt = parent::prepare($query);
 
     try {
       $stmt->execute($args);
@@ -316,9 +347,9 @@ class Connection extends DatabaseConnection {
   private function exceptionQuery(&$unformattedQuery) {
     global $oracle_exception_queries;
 
-  	if (!is_array($oracle_exception_queries)) {
+    if (!is_array($oracle_exception_queries)) {
       return FALSE;
-  	}
+    }
 
     $count = 0;
     $oracle_unformatted_query = preg_replace(
@@ -337,32 +368,32 @@ class Connection extends DatabaseConnection {
       throw new Exception('The name of the sequence is mandatory for Oracle');
     }
 
-  	try {
-  	  return $this->oracleQuery($this->prefixTables("select " . $name . ".currval from dual", TRUE))->fetchColumn();
-  	}
-  	catch (Exception $e) {
+    try {
+      return $this->oracleQuery($this->prefixTables("select " . $name . ".currval from dual", TRUE))->fetchColumn();
+    }
+    catch (\Exception $e) {
       // Ignore if CURRVAL not set (may be an insert that specified the serial field).
       syslog(LOG_ERR, " currval: " . print_r(debug_backtrace(FALSE), TRUE));
     }
   }
 
   public function generateTemporaryTableName() {
-    // FIXME: create a cleanup job
+    // FIXME: create a cleanup job.
     return "TMP_" . $this->oracleQuery("SELECT userenv('sessionid') FROM dual")->fetchColumn() . "_" . $this->temporaryNameIndex++;
   }
 
   public function quote($string, $parameter_type = PDO::PARAM_STR) {
-  	return "'" . str_replace("'", "''", $string) . "'";
+    return "'" . str_replace("'", "''", $string) . "'";
   }
 
   public function version() {
-//    try {
-//      return $this->getAttribute(PDO::ATTR_SERVER_VERSION);
-//    }
-//    catch (Exception $e) {
-//      return $this->oracleQuery("select regexp_replace(banner,'[^0-9\.]','') from v\$version where banner like 'CORE%'")->fetchColumn();
-//    }
-      return NULL;
+    //try {
+    //  return $this->getAttribute(PDO::ATTR_SERVER_VERSION);
+    //}
+    //catch (\Exception $e) {
+    //  return $this->oracleQuery("select regexp_replace(banner,'[^0-9\.]','') from v\$version where banner like 'CORE%'")->fetchColumn();
+    //}
+    return NULL;
   }
 
   /**
@@ -375,7 +406,7 @@ class Connection extends DatabaseConnection {
   }
 
   public function checkDbPrefix($db_prefix) {
-	  if (empty($db_prefix)) {
+    if (empty($db_prefix)) {
       return;
     }
     if (!isset($this->oraclePrefix[$db_prefix])) {
@@ -386,12 +417,12 @@ class Connection extends DatabaseConnection {
   }
 
   public function prefixTables($sql, $quoted = FALSE) {
-	  $quote = '';
-	  $ret = '';
+    $quote = '';
+    $ret = '';
 
-	  if (!$quoted) {
-	    $quote = '"';
-	  }
+    if (!$quoted) {
+      $quote = '"';
+    }
 
     // Replace specific table prefixes first.
     foreach ($this->prefixes as $key => $val) {
@@ -402,14 +433,14 @@ class Connection extends DatabaseConnection {
       $sql = strtr($sql, array('{' . strtoupper($key) . '}' => $quote . (empty($dp) ? strtoupper($key) : strtoupper($dp) . '"."' . strtoupper($key)) . $quote));
     }
 
-	  $dp = $this->checkDbPrefix($this->tablePrefix());
-	  $ret = strtr($sql, array('{' => $quote . (empty($dp) ? '' : strtoupper($dp) . '"."'), '}' => $quote));
+    $dp = $this->checkDbPrefix($this->tablePrefix());
+    $ret = strtr($sql, array('{' => $quote . (empty($dp) ? '' : strtoupper($dp) . '"."'), '}' => $quote));
 
-	  return $this->escapeAnsi($ret);
+    return $this->escapeAnsi($ret);
   }
 
   public function prepareQuery($query) {
-	  $iquery = md5(($this->external ? 'E|' : '') . $this->prefixTables($query, TRUE));
+    $iquery = md5(($this->external ? 'E|' : '') . $this->prefixTables($query, TRUE));
 
     if (empty($this->preparedStatements[$iquery])) {
       $oquery = "";
@@ -426,7 +457,7 @@ class Connection extends DatabaseConnection {
         $oquery = $this->escapeAnsi($oquery);
 
         if (!$this->external) {
-          $oquery = $this->lih->escapeLongIdentifiers($oquery);
+          $oquery = $this->getLongIdentifiersHandler()->escapeLongIdentifiers($oquery);
         }
 
         $oquery = $this->escapeReserved($oquery);
@@ -440,24 +471,25 @@ class Connection extends DatabaseConnection {
       }
       $this->preparedStatements[$iquery] = $this->prepare($oquery);
     }
-	  return $this->preparedStatements[$iquery];
+    return $this->preparedStatements[$iquery];
   }
 
-  // @todo I don't like this too.
   public function PDOPrepare($query, array $options = array()) {
+    // @todo remove. I don't like this too.
     return parent::prepare($query, $options);
   }
 
   private function escapeAnsi($query) {
-  	if (preg_match("/^select /i", $query) && !preg_match("/^select(.*)from/ims", $query)) {
-  	  $query .= ' FROM DUAL';
-  	}
+    if (preg_match("/^select /i", $query) && !preg_match("/^select(.*)from/ims", $query)) {
+      $query .= ' FROM DUAL';
+    }
 
     $search = array(
       '/("\w+?")/e',
       "/([^\s\(]+) & ([^\s]+) = ([^\s\)]+)/",
       "/([^\s\(]+) & ([^\s]+) <> ([^\s\)]+)/", // bitand
       '/^RELEASE SAVEPOINT (.*)$/',
+      '/\((.*) REGEXP (.*)\)/',
     );
 
     $replace = array(
@@ -465,18 +497,19 @@ class Connection extends DatabaseConnection {
       "BITAND(\\1,\\2) = \\3",
       "BITAND(\\1,\\2) <> \\3",
       "begin null; end;",
+      "REGEXP_LIKE(\\1,\\2)",
     );
 
     return str_replace('\\"', '"', preg_replace($search, $replace, $query));
   }
 
   private function escapeEmptyLiteral($match) {
-	  if ($match[0] == "''") {
-	    return "'" . ORACLE_EMPTY_STRING_REPLACER . "'";
-	  }
-	  else {
-	    return $match[0];
-	  }
+    if ($match[0] == "''") {
+      return "'" . ORACLE_EMPTY_STRING_REPLACER . "'";
+    }
+    else {
+      return $match[0];
+    }
   }
 
   private function escapeEmptyLiterals($query) {
@@ -508,7 +541,7 @@ class Connection extends DatabaseConnection {
       '/([\(\.\s,])(uid|session|file|access|mode|comment|desc|size' . ($ddl ? '' : '|date') . ')$/e',
     );
 
-	  $replace = array(
+    $replace = array(
       "'\"\\1'.strtoupper('\\2').'\\3\"'",
       "'\"\\1'.strtoupper('\\2').'\\3\"'",
       "'\\1'.'db_'.'\\2'.'\\3'",
@@ -534,7 +567,7 @@ class Connection extends DatabaseConnection {
     if (is_object($query)) {
       $query = $query->getQueryString();
     }
-		$search = array(
+    $search = array(
       "''||", // remove empty concatenations leaved by concatenate_bind_variables
       "||''",
       "IN ()", // translate 'IN ()' to '= NULL' they do not match anything anyway (always false)
@@ -544,9 +577,12 @@ class Connection extends DatabaseConnection {
       ") AS count_alias", // ugly hacks here
       '"{URL_ALIAS}" GROUP BY path',
       "ESCAPE '\\\\'",
+      'SELECT CONNECTION_ID() FROM DUAL',
+      'SHOW PROCESSLIST',
+      'SHOW TABLES',
     );
 
-		$replace = array(
+    $replace = array(
       "",
       "",
       "= NULL",
@@ -556,9 +592,12 @@ class Connection extends DatabaseConnection {
       ") count_alias",// ugly hacks replace strings here
       '"{URL_ALIAS}" GROUP BY SUBSTRING_INDEX(source, \'/\', 1)',
       "ESCAPE '\\'",
+      'SELECT DISTINCT sid FROM v$mystat',
+      'SELECT DISTINCT stat.sid, sess.process, sess.status, sess.username, sess.schemaname, sql.sql_text FROM v$mystat stat, v$session sess, v$sql sql WHERE sql.sql_id(+) = sess.sql_id AND sess.status = \'ACTIVE\' AND sess.type = \'USER\'',
+      'SELECT * FROM user_tables',
     );
 
-		return str_replace($search, $replace, $query);
+    return str_replace($search, $replace, $query);
   }
 
   public function makeSequenceName($table, $field) {
@@ -566,7 +605,7 @@ class Connection extends DatabaseConnection {
   }
 
   public function cleanupArgValue($value) {
-  	if (is_string($value)) {
+    if (is_string($value)) {
       if ($value == '') {
         return ORACLE_EMPTY_STRING_REPLACER;
       }
@@ -576,7 +615,7 @@ class Connection extends DatabaseConnection {
       else {
         return $value;
       }
-  	}
+    }
     else {
       return $value;
     }
@@ -587,13 +626,13 @@ class Connection extends DatabaseConnection {
       return $args;
     }
 
-  	$ret = array();
-  	if (Connection::isAssoc($args)) {
-  	  foreach ($args as $key => $value) {
+    $ret = array();
+    if (Connection::isAssoc($args)) {
+      foreach ($args as $key => $value) {
         $key = Connection::escapeReserved($key); // bind variables cannot have reserved names
-        $key = $this->lih->escapeLongIdentifiers($key);
+        $key = $this->getLongIdentifiersHandler()->escapeLongIdentifiers($key);
         $ret[$key] = $this->cleanupArgValue($value);
-  	  }
+      }
     }
     else { // indexed array
       foreach ($args as $key => $value) {
@@ -601,7 +640,7 @@ class Connection extends DatabaseConnection {
       }
     }
 
-  	return $ret;
+    return $ret;
   }
 
   public function writeBlob($value) {
@@ -609,26 +648,26 @@ class Connection extends DatabaseConnection {
     $stmt = $this->connection->prepare("select blobid from blobs where hash = :hash");
     $stmt->bindParam(':hash', $hash, PDO::PARAM_STR);
     $stmt->execute();
-		$handle = $stmt->fetchColumn();
+    $handle = $stmt->fetchColumn();
 
     if (empty($handle)) {
-			$stream = Connection::stringToStream($value);
+      $stream = Connection::stringToStream($value);
       try {
-          $this->connection->commit();
+        $this->connection->commit();
       }
       catch (\Exception $e) {
-          // do nothing.
+        // Do nothing.
       }
       $this->connection->beginTransaction();
       $stmt = $this->prepareQuery("insert into blobs (blobid, content, hash) VALUES (seq_blobs.nextval, EMPTY_BLOB(), :hash) RETURNING content INTO :content");
-			$stmt->bindParam(':hash', $hash, PDO::PARAM_STR);
-			$stmt->bindParam(':content', $stream, PDO::PARAM_LOB);
-			$stmt->execute();
+      $stmt->bindParam(':hash', $hash, PDO::PARAM_STR);
+      $stmt->bindParam(':content', $stream, PDO::PARAM_LOB);
+      $stmt->execute();
       $this->connection->commit();
-			$handle = $this->lastInsertId("seq_blobs");
-		}
+      $handle = $this->lastInsertId("seq_blobs");
+    }
 
-		$handle = ORACLE_BLOB_PREFIX . $handle;
+    $handle = ORACLE_BLOB_PREFIX . $handle;
     return $handle;
   }
 
@@ -639,10 +678,10 @@ class Connection extends DatabaseConnection {
     $stmt->execute();
     $return = $stmt->fetchColumn();
 
-		if (!empty($return)) {
-			return $return;
-		}
-		return '';
+    if (!empty($return)) {
+      return $return;
+    }
+    return '';
   }
 
   public function cleanupFetchedValue($value) {
@@ -663,17 +702,17 @@ class Connection extends DatabaseConnection {
   }
 
   public function resetLongIdentifiers() {
-  	if (!$this->external) {
-      $this->lih->resetLongIdentifiers();
-  	}
+    if (!$this->external) {
+      $this->getLongIdentifiersHandler()->resetLongIdentifiers();
+    }
   }
 
   public static function isLongIdentifier($key) {
-  	return (substr(strtoupper($key), 0, strlen(ORACLE_LONG_IDENTIFIER_PREFIX)) == ORACLE_LONG_IDENTIFIER_PREFIX);
+    return (substr(strtoupper($key), 0, strlen(ORACLE_LONG_IDENTIFIER_PREFIX)) == ORACLE_LONG_IDENTIFIER_PREFIX);
   }
 
   public static function isBlob($value) {
-  	return (substr($value, 0, strlen(ORACLE_BLOB_PREFIX)) == ORACLE_BLOB_PREFIX);
+    return (substr($value, 0, strlen(ORACLE_BLOB_PREFIX)) == ORACLE_BLOB_PREFIX);
   }
 
   private static function stringToStream($value) {
@@ -706,7 +745,7 @@ class Connection extends DatabaseConnection {
         try {
           $this->query('RELEASE SAVEPOINT ' . $name);
         }
-        catch (Exception $e) {
+        catch (\Exception $e) {
           throw $e;
         }
         //catch (DatabaseExceptionWrapper $e) {
@@ -732,12 +771,27 @@ class Connection extends DatabaseConnection {
       }
     }
   }
+
+  /**
+   * Long identifier support.
+   */
+  public function getLongIdentifiersHandler() {
+    static $long_identifier = NULL;
+
+    if ($this->external) {
+      return NULL;
+    }
+
+    // Initialize the long identifier handler.
+    if (empty($long_identifier)) {
+      $long_identifier = new DatabaseLongIdentifierHandlerOracle($this);
+    }
+    return $long_identifier;
+  }
 }
 
 /**
- * MAGIC CLASS O_o
- *
- * @todo WHAT THE FUCK IS IT???
+ * @TODO: remove this?
  */
 class DatabaseLongIdentifierHandlerOracle {
   // Holds search reg exp pattern to match known long identifiers.
@@ -785,8 +839,8 @@ class DatabaseLongIdentifierHandlerOracle {
     }
   }
 
-  // TODO: would be wonderfull to enble a memcached switch here
   public function resetLongIdentifiers() {
+    // TODO: would be wonderfull to enble a memcached switch here
     try  {
       $result = $this->connection->oracleQuery("select id, identifier from long_identifiers where substr(identifier,1,3) not in ('IDX','TRG','PK_','UK_') order by length(identifier) desc");
 
@@ -796,18 +850,18 @@ class DatabaseLongIdentifierHandlerOracle {
         $this->hashLongIdentifiers[ORACLE_LONG_IDENTIFIER_PREFIX . $row->id] = strtolower($row->identifier);
       }
     }
-    catch (Exception $e) {
-    	// Ignore until long_identifiers table is not created.
+    catch (\Exception $e) {
+      // Ignore until long_identifiers table is not created.
     }
   }
 
   public function findAndRecordLongIdentifiers($query_part) {
-  	preg_match_all("/\w+/", $query_part, $words);
-  	$words = $words[0];
-  	foreach ($words as $word) {
-  	  if (strlen($word) > ORACLE_IDENTIFIER_MAX_LENGTH) {
+    preg_match_all("/\w+/", $query_part, $words);
+    $words = $words[0];
+    foreach ($words as $word) {
+      if (strlen($word) > ORACLE_IDENTIFIER_MAX_LENGTH) {
         $this->connection->schema()->oid($word);
-  	  }
+      }
     }
   }
 
@@ -827,6 +881,13 @@ class DatabaseLongIdentifierHandlerOracle {
   }
 
   public function longIdentifierKey($key) {
-  	return $this->hashLongIdentifiers[strtoupper($key)];
+    return $this->hashLongIdentifiers[strtoupper($key)];
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function serialize() {
+    return serialize(array());
   }
 }

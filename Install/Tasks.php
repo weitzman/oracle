@@ -11,7 +11,6 @@ use Drupal\Core\Database\Install\Tasks as InstallTasks;
 use Drupal\Core\Database\Database;
 use Drupal\Core\Database\Driver\oracle\Connection;
 use Drupal\Core\Database\DatabaseNotFoundException;
-use Exception;
 
 /**
  * Specifies installation tasks for Oracle and equivalent databases.
@@ -66,7 +65,7 @@ class Tasks extends InstallTasks {
       $this->pass('Oracle has initialized itself.');
       Database::getConnection('default')->makePrimary();
     }
-    catch (Exception $e) {
+    catch (\Exception $e) {
       if ($e->getCode() == Connection::DATABASE_NOT_FOUND) {
         // Remove the database string from connection info.
         $connection_info = Database::getConnectionInfo();
@@ -96,14 +95,14 @@ class Tasks extends InstallTasks {
         $ok = TRUE;
         break;
       }
-      catch (Exception $e) {}
+      catch (\Exception $e) {}
     }
 
     if (!$ok) {
-      throw new Exception('unable to determine PDO maximum bind size');
+      throw new \Exception('unable to determine PDO maximum bind size');
     }
 
-    $this->failsafeDdl("drop table oracle_bind_size");        
+    $this->failsafeDdl("drop table oracle_bind_size");
     $this->failsafeDdl("create table oracle_bind_size as select $determined_size val from dual");
   }
 
@@ -155,8 +154,8 @@ class Tasks extends InstallTasks {
     try {
       $this->oracleQuery($this->getPhpContents($file_path));
     }
-    catch (Exception $e) {
-      syslog(LOG_ERR, "object $file_path created with errors");         
+    catch (\Exception $e) {
+      syslog(LOG_ERR, "object $file_path created with errors");
     }
   }
 
