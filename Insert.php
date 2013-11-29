@@ -36,7 +36,7 @@ class Insert extends QueryInsert {
 
     if (!empty($this->fromQuery)) {
       foreach ($this->fromQuery->getArguments() as $key => $value) {
-				$value = $this->connection->cleanupArgValue($value);
+        $value = $this->connection->cleanupArgValue($value);
         $stmt->bindParam($key, $value);
       }
       // The SelectQuery may contain arguments, load and pass them through.
@@ -44,9 +44,7 @@ class Insert extends QueryInsert {
     }
 
     $last_insert_id = 0;
-
-    // @todo looks like this doesn't work.
-    //$transaction = $this->connection->startTransaction();
+    $transaction = $this->connection->startTransaction();
 
     try {
       if (empty($this->insertValues)) {
@@ -65,8 +63,8 @@ class Insert extends QueryInsert {
     }
     catch (\Exception $e) {
       // One of the INSERTs failed, rollback the whole batch.
-      // @todo look at Connection::startTransaction().
-      //$transaction->rollback();
+      // Transaction already is rolled back in Connection:query().
+      $transaction->rollback();
 
       // Rethrow the exception for the calling code.
       throw $e;

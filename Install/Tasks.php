@@ -46,12 +46,10 @@ class Tasks extends InstallTasks {
     try {
       // This doesn't actually test the connection.
       db_set_active();
-      // Now actually do a check.
-      //$test = Database::getConnection();
-      //$this->pass('Drupal can CONNECT to the database ok.');
 
-      //syslog(LOG_ERR, "current dir: " . getcwd());
+      // @TODO: make this dynamic.
       $dir = getcwd() . '/core/lib/Drupal/Core/Database/Driver/oracle/resources';
+
       $this->determineSupportedBindSize();
       $this->createFailsafeObjects("{$dir}/table");
       $this->createFailsafeObjects("{$dir}/index");

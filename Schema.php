@@ -14,11 +14,9 @@ use Drupal\Core\Database\SchemaObjectExistsException;
 use Drupal\Core\Database\SchemaObjectDoesNotExistException;
 use Drupal\Core\Database\Schema as DatabaseSchema;
 
-use \stdClass;
-
 class Schema extends DatabaseSchema {
   /**
-   * cache table informations used for InsertQuery and UpdateQuery in the query.inc
+   * Cache table informations used for InsertQuery and UpdateQuery in the query.inc
    */
   private static $tableInformation = array();
 
@@ -56,7 +54,7 @@ class Schema extends DatabaseSchema {
   public function getTableInfo($table) {
     $schema = $this->tableSchema($this->connection->prefixTables('{' . strtoupper($table) . '}', TRUE));
 
-    $info = new stdClass();
+    $info = new \stdClass();
     try {
       if (!isset(Schema::$tableInformation[$schema . '|' . $table])) {
         $info->sequence_name = $this->connection->oracleQuery("select identifier.sequence_for_table(?,?) sequence_name from dual", array(strtoupper($table), $schema))->fetchColumn();
@@ -68,7 +66,8 @@ class Schema extends DatabaseSchema {
     }
     catch (PDOException $ex) {
       if ($ex->errorInfo[1] == '00904') {
-        // ignore (may be a connection to a non drupal schema not having the identifier pkg see http://drupal.org/node/1121044)
+        // Ignore (may be a connection to a non drupal schema not having the identifier pkg).
+        // See http://drupal.org/node/1121044.
       }
       else {
         throw $ex;
@@ -89,13 +88,12 @@ class Schema extends DatabaseSchema {
   }
 
   /**
-   * emulates mysql default column behaviour (eg.
+   * Emulates mysql default column behaviour (eg.
    * insert into table (col1) values (null)
    * if col1 has default in mysql you have the default insterted instead of null.
    * On oracle you have null inserted.
    * So we need a trigger to intercept this condition and substitute null with default...
-   * This condition happens on MySQL only inserting not updating
-   * )
+   * This condition happens on MySQL only inserting not updating.
    */
   public function rebuildDefaultsTrigger($table) {
     $schema = $this->tableSchema($this->connection->prefixTables('{' . strtoupper($table) . '}', TRUE));
@@ -401,6 +399,7 @@ class Schema extends DatabaseSchema {
 
     // Drop defaults trigger.
     $this->failsafeDdl("DROP TRIGGER " . $this->oid('TRG_' . $table . '_DEFS', TRUE));
+
     // Should not use prefix because schema is not needed on rename.
     db_query('ALTER TABLE ' . $this->oid($table, TRUE) . ' RENAME TO ' . $this->oid($new_name, FALSE));
 
