@@ -10,6 +10,7 @@ namespace Drupal\Core\Database\Driver\oracle;
 use Drupal\Component\Utility\String;
 use Drupal\Core\Database\Database;
 use Drupal\Core\Database\Query\Condition;
+use Drupal\Core\Database\DatabaseException;
 use Drupal\Core\Database\SchemaObjectExistsException;
 use Drupal\Core\Database\SchemaObjectDoesNotExistException;
 use Drupal\Core\Database\Schema as DatabaseSchema;
@@ -64,13 +65,13 @@ class Schema extends DatabaseSchema {
         $info = Schema::$tableInformation[$schema . '|' . $table];
       }
     }
-    catch (PDOException $ex) {
-      if ($ex->errorInfo[1] == '00904') {
+    catch (\PDOException $e) {
+      if ($e->errorInfo[1] == '00904') {
         // Ignore (may be a connection to a non drupal schema not having the identifier pkg).
         // See http://drupal.org/node/1121044.
       }
       else {
-        throw $ex;
+        throw $e;
       }
     }
 
@@ -290,7 +291,11 @@ class Schema extends DatabaseSchema {
     }
 
     // Set the correct database-engine specific datatype.
-    if (!isset($field['oracle_type'])) {
+    // In case one is already provided, force it to uppercase.
+    if (isset($field['oracle_type'])) {
+      $field['oracle_type'] = drupal_strtoupper($field['oracle_type']);
+    }
+    else {
       $map = $this->getFieldTypeMap();
       $field['oracle_type'] = $map[$field['type'] . ':' . $field['size']];
     }
@@ -336,7 +341,7 @@ class Schema extends DatabaseSchema {
       'date:normal' => 'date',
 
       'datetime:normal' => 'timestamp with local time zone',
-
+      'timestamp:normal' => 'timestamp',
       'time:normal'     => 'timestamp',
 
       'serial:tiny' => 'number',
@@ -523,7 +528,7 @@ class Schema extends DatabaseSchema {
 
       return TRUE;
     }
-    catch (Exception $ex) {
+    catch (\Exception $e) {
       return FALSE;
     }
   }
@@ -949,7 +954,7 @@ class Schema extends DatabaseSchema {
     try {
       db_query($ddl);
     }
-    catch (Exception $ex) {
+    catch (\Exception $e) {
      // Ignore.
     }
   }
@@ -965,10 +970,6 @@ class Schema extends DatabaseSchema {
       throw new SchemaObjectExistsException(String::format("Cannot copy @source to @destination: table @destination already exists.", array('@source' => $source, '@destination' => $destination)));
     }
 
-    $info = $this->getPrefixInfo($destination);
-    $return = $this->connection->query('CREATE TABLE ' . $info['table'] . ' AS SELECT * FROM {' . $source . '} WHERE 1=0');
-    $this->rebuildDefaultsTrigger($name);
-    $this->resetLongIdentifiers();
-    return $return;
+    throw new DatabaseException('Not implemented, see https://drupal.org/node/2056133.');
   }
 }
