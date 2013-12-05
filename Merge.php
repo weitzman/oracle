@@ -2,10 +2,10 @@
 
 /**
  * @file
- * Definition of Drupal\Core\Database\Driver\oracle\Merge
+ * Definition of Drupal\Driver\Database\oracle\Merge
  */
 
-namespace Drupal\Core\Database\Driver\oracle;
+namespace Drupal\Driver\Database\oracle;
 
 use Drupal\Core\Database\Query\Merge as QueryMerge;
 

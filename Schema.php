@@ -2,10 +2,10 @@
 
 /**
  * @file
- * Definition of Drupal\Core\Database\Driver\oracle\Schema
+ * Definition of Drupal\Driver\Database\oracle\Schema
  */
 
-namespace Drupal\Core\Database\Driver\oracle;
+namespace Drupal\Driver\Database\oracle;
 
 use Drupal\Component\Utility\String;
 use Drupal\Core\Database\Database;

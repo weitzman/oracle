@@ -2,10 +2,10 @@
 
 /**
  * @file
- * Definition of Drupal\Core\Database\Driver\oracle\Statement
+ * Definition of Drupal\Driver\Database\oracle\Statement
  */
 
-namespace Drupal\Core\Database\Driver\oracle;
+namespace Drupal\Driver\Database\oracle;
 
 use Drupal\Core\Database\Statement as CoreStatement;
 

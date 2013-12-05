@@ -2,10 +2,10 @@
 
 /**
  * @file
- * Definition of Drupal\Core\Database\Driver\oracle\Update
+ * Definition of Drupal\Driver\Database\oracle\Update
  */
 
-namespace Drupal\Core\Database\Driver\oracle;
+namespace Drupal\Driver\Database\oracle;
 
 use Drupal\Core\Database\Query\Update as QueryUpdate;
 

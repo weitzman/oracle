@@ -2,10 +2,10 @@
 
 /**
  * @file
- * Definition of Drupal\Core\Database\Driver\oracle\Connection
+ * Definition of Drupal\Driver\Database\oracle\Connection
  */
 
-namespace Drupal\Core\Database\Driver\oracle;
+namespace Drupal\Driver\Database\oracle;
 
 use Drupal\Core\Database\DatabaseException;
 use Drupal\Core\Database\DatabaseExceptionWrapper;
@@ -15,7 +15,7 @@ use Drupal\Core\Database\TransactionCommitFailedException;
 
 use Drupal\Core\Database\Database;
 use Drupal\Core\Database\Connection as DatabaseConnection;
-use Drupal\Core\Database\Driver\oracle\StatementBase;
+use Drupal\Driver\Database\oracle\StatementBase;
 
 /**
  * Used to replace '' character in queries.

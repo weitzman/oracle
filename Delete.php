@@ -2,10 +2,10 @@
 
 /**
  * @file
- * Definition of Drupal\Core\Database\Driver\oracle\Delete
+ * Definition of Drupal\Driver\Database\oracle\Delete
  */
 
-namespace Drupal\Core\Database\Driver\oracle;
+namespace Drupal\Driver\Database\oracle;
 
 use Drupal\Core\Database\Query\Delete as QueryDelete;
 

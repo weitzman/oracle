@@ -2,12 +2,13 @@
 
 /**
  * @file
- * Definition of Drupal\Core\Database\Driver\oracle\Select
+ * Definition of Drupal\Driver\Database\oracle\Select
  */
 
-namespace Drupal\Core\Database\Driver\oracle;
+namespace Drupal\Driver\Database\oracle;
 
 use Drupal\Core\Database\Query\Select as QuerySelect;
+use Drupal\Core\Database\Query\SelectInterface;
 
 /**
  * @addtogroup database
@@ -76,7 +77,7 @@ class Select extends QuerySelect {
       }
 
       // If the table is a subquery, compile it and integrate it into this query.
-      if ($table['table'] instanceof QuerySelect) {
+      if ($table['table'] instanceof SelectInterface) {
         $table_string = '(' . (string) $table['table'] . ')';
       }
       else {

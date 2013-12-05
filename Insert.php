@@ -2,10 +2,10 @@
 
 /**
  * @file
- * Definition of Drupal\Core\Database\Driver\oracle\Insert
+ * Definition of Drupal\Driver\Database\oracle\Insert
  */
 
-namespace Drupal\Core\Database\Driver\oracle;
+namespace Drupal\Driver\Database\oracle;
 
 use Drupal\Core\Database;
 use Drupal\Core\Database\Query\Insert as QueryInsert;

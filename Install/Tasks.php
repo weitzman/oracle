@@ -2,14 +2,14 @@
 
 /**
  * @file
- * Definition of Drupal\Core\Database\Driver\oracle\Install\Tasks
+ * Definition of Drupal\Driver\Database\oracle\Install\Tasks
  */
 
-namespace Drupal\Core\Database\Driver\oracle\Install;
+namespace Drupal\Driver\Database\oracle\Install;
 
 use Drupal\Core\Database\Install\Tasks as InstallTasks;
 use Drupal\Core\Database\Database;
-use Drupal\Core\Database\Driver\oracle\Connection;
+use Drupal\Driver\Database\oracle\Connection;
 use Drupal\Core\Database\DatabaseNotFoundException;
 
 /**
@@ -48,7 +48,7 @@ class Tasks extends InstallTasks {
       db_set_active();
 
       // @TODO: make this dynamic.
-      $dir = getcwd() . '/core/lib/Drupal/Core/Database/Driver/oracle/resources';
+      $dir = getcwd() . '/drivers/lib/Drupal/Driver/Database/oracle/resources';
 
       $this->determineSupportedBindSize();
       $this->createFailsafeObjects("{$dir}/table");
