@@ -234,7 +234,7 @@ class Connection extends DatabaseConnection {
   public function queryTemporary($query, array $args = array(), array $options = array()) {
     $tablename = $this->generateTemporaryTableName();
     try {
-      db_query("DROP TABLE {". $tablename ."}");
+      $this->query("DROP TABLE {". $tablename ."}");
     }
     catch (\Exception $ex) {
       /* ignore drop errors */
