@@ -74,7 +74,8 @@ class Connection extends DatabaseConnection {
 
   private $max_varchar2_bind_size = ORACLE_MIN_PDO_BIND_LENGTH;
 
-  protected $statementClass = 'Drupal\Core\Database\Driver\oracle\Statement';
+  protected $statementClass = 'Drupal\Driver\Database\oracle\Statement';
+  protected $statementClassOracle = 'Drupal\Driver\Database\oracle\StatementOracle';
 
   protected $transactionSupport = TRUE;
 
@@ -304,6 +305,11 @@ class Connection extends DatabaseConnection {
   }
 
   public function oracleQuery($query, $args = NULL) {
+    // Set a Fake Statement class.
+    if (!empty($this->statementClass)) {
+      $this->connection->setAttribute(\PDO::ATTR_STATEMENT_CLASS, array($this->statementClassOracle, array($this)));
+    }
+
     $stmt = $this->prepare($query);
 
     try {
@@ -312,6 +318,11 @@ class Connection extends DatabaseConnection {
     catch (\Exception $e) {
       syslog(LOG_ERR, "error: {$e->getMessage()} {$query}");
       throw $e;
+    }
+
+    // Set default Statement class.
+    if (!empty($this->statementClass)) {
+      $this->connection->setAttribute(\PDO::ATTR_STATEMENT_CLASS, array($this->statementClass, array($this)));
     }
 
     return $stmt;
