@@ -7,8 +7,6 @@
 
 namespace Drupal\Driver\Database\oracle;
 
-//use Drupal\Core\Database\StatementInterface;
-
 class StatementOracle extends \PDOStatement {
 
   /**

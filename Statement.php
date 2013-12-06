@@ -10,6 +10,13 @@ namespace Drupal\Driver\Database\oracle;
 use Drupal\Core\Database\Statement as CoreStatement;
 
 class Statement extends CoreStatement implements \IteratorAggregate {
+  public function execute($args = array(), $options = array()) {
+    if (!is_array($args) || !count($args)) {
+      $args = NULL;
+    }
+    return parent::execute($args, $options);
+  }
+
   public function fetch($fetch_style = NULL, $cursor_orientation = \PDO::FETCH_ORI_NEXT, $cursor_offset = 0) {
     return $this->dbh->cleanupFetched(parent::fetch($fetch_style, $cursor_orientation, $cursor_offset));
   }
