@@ -558,7 +558,8 @@ class Connection extends DatabaseConnection {
   }
 
   public function makeSequenceName($table, $field) {
-    return $this->schema()->makeSequenceName($table, $field);
+    $sequence_name = $this->schema()->oid('SEQ_' . $table . '_' . $field, FALSE, FALSE);
+    return '"{' . $sequence_name . '}"';
   }
 
   public function cleanupArgValue($value) {

@@ -24,25 +24,20 @@ class Schema extends DatabaseSchema {
   private $foundLongIdentifier = FALSE;
 
   public function oid($name, $prefix = FALSE, $quote = TRUE) {
-    $ret = $name;
+    $return = $name;
 
-    if (strlen($ret) > ORACLE_IDENTIFIER_MAX_LENGTH) {
+    if (strlen($return) > ORACLE_IDENTIFIER_MAX_LENGTH) {
       $this->foundLongIdentifier = TRUE;
-      $ret = $this->connection->oracleQuery("select identifier.get_for(?) from dual",array(strtoupper($ret)))->fetchColumn();
+      $return = $this->connection->oracleQuery("select identifier.get_for(?) from dual",array(strtoupper($return)))->fetchColumn();
     }
 
-    if ($prefix) {
-      $ret= '{' . $ret . '}';
-    }
-    else {
-      $ret = strtoupper($ret);
-    }
+    $return = $prefix ? '{' . $return . '}' : strtoupper($return);
 
     if (!$prefix && $quote) {
-      $ret= '"' . $ret . '"';
+      $return = '"' . $return . '"';
     }
 
-    return $ret;
+    return $return;
   }
 
   private function resetLongIdentifiers() {
@@ -59,7 +54,7 @@ class Schema extends DatabaseSchema {
     try {
       if (!isset(Schema::$tableInformation[$schema . '|' . $table])) {
         $info->sequence_name = $this->connection->oracleQuery("select identifier.sequence_for_table(?,?) sequence_name from dual", array(strtoupper($table), $schema))->fetchColumn();
-        Schema::$tableInformation[$schema . '|' . $table]= $info;
+        Schema::$tableInformation[$schema . '|' . $table] = $info;
       }
       else {
         $info = Schema::$tableInformation[$schema . '|' . $table];
@@ -83,11 +78,6 @@ class Schema extends DatabaseSchema {
     unset(Schema::$tableInformation[$schema . '|' . $table]);
   }
 
-  public function makeSequenceName($table, $field) {
-    $sequence_name = $this->oid('SEQ_' . $table . '_' . $field, FALSE, FALSE);
-    return '"{' . $sequence_name . '}"';
-  }
-
   /**
    * Emulates mysql default column behaviour (eg.
    * insert into table (col1) values (null)
@@ -105,7 +95,7 @@ class Schema extends DatabaseSchema {
       ' for each row begin /* defs trigger */ if inserting then ';
 
     $serial_oname = $this->connection->oracleQuery("select field_name from table(identifier.get_serial(?,?))", array($table, $schema))->fetchColumn();
-    $serial_oname = ($serial_oname ? $serial_oname : "^NNC^");
+    $serial_oname = $serial_oname ? $serial_oname : "^NNC^";
 
     $stmt = $this->connection->oracleQuery(
       "select /*+ALL_ROWS*/ column_name,
@@ -194,13 +184,11 @@ class Schema extends DatabaseSchema {
       }
     }
 
-    $sql = "CREATE TABLE " . $oname . " (\n\t";
-    $sql .= implode(",\n\t", $sql_fields);
+    $sql = "CREATE TABLE " . $oname . " (\n\t" . implode(",\n\t", $sql_fields);
     if (count($sql_keys) > 0) {
       $sql .= ",\n\t";
     }
-    $sql .= implode(",\n\t", $sql_keys);
-    $sql .= "\n)";
+    $sql .= implode(",\n\t", $sql_keys) . "\n)";
     $statements[] = $sql;
 
     if (isset($table['indexes']) && is_array($table['indexes'])) {
@@ -210,13 +198,13 @@ class Schema extends DatabaseSchema {
     }
 
     // Add table comment.
-    if (isset($table['description']) && $this->prepareComment($table['description'])) {
+    if (isset($table['description'])) {
       $statements[] = 'COMMENT ON TABLE ' . $oname . ' IS ' . $this->prepareComment($table['description']);
     }
 
     // Add column comments.
     foreach ($table['fields'] as $field_name => $field) {
-      if (isset($field['description']) && $this->prepareComment($field['description'])) {
+      if (isset($field['description'])) {
         $statements[] = 'COMMENT ON COLUMN ' . $oname . '.' . $this->oid($field_name) . ' IS ' . $this->prepareComment($field['description']);
       }
     }
@@ -268,7 +256,7 @@ class Schema extends DatabaseSchema {
       $sql .= " default {$default}";
     }
 
-    if (isset($spec['not null']) && $spec['not null']) {
+    if (!empty($spec['not null'])) {
       $sql .= ' NOT NULL';
     }
 
@@ -368,16 +356,16 @@ class Schema extends DatabaseSchema {
   }
 
   protected function createColsSql($cols) {
-    $ret = array();
+    $return = array();
     foreach ($cols as $col) {
       if (is_array($col)) {
-        $ret[] = $this->oid($col[0]);
+        $return[] = $this->oid($col[0]);
       }
       else {
-        $ret[] = $this->oid($col);
+        $return[] = $this->oid($col);
       }
     }
-    return implode(', ', $ret);
+    return implode(', ', $return);
   }
 
   private function getTableSerialInfo($table) {
@@ -397,7 +385,7 @@ class Schema extends DatabaseSchema {
     $info = $this->getTableSerialInfo($table);
     $oname = $this->oid($new_name, TRUE);
 
-    if (isset($info->sequence_name) && $info->sequence_name) {
+    if (!empty($info->sequence_name)) {
       $this->failsafeDdl('DROP TRIGGER {' . $info->trigger_name . '}');
       $this->failsafeDdl('DROP SEQUENCE {' . $info->sequence_name . '}');
     }
@@ -408,17 +396,26 @@ class Schema extends DatabaseSchema {
     // Should not use prefix because schema is not needed on rename.
     $this->connection->query('ALTER TABLE ' . $this->oid($table, TRUE) . ' RENAME TO ' . $this->oid($new_name, FALSE));
 
-    if (isset($info->sequence_name) && $info->sequence_name) {
+    if (!empty($info->sequence_name)) {
       $statements = $this->createSerialSql($table, $info->field_name, $info->sequence_restart);
       foreach ($statements as $statement) {
         $this->connection->query($statement);
       }
     }
 
-    $this->renameIndexes($table, $new_name);
-    $this->resetLongIdentifiers();
-    $this->removeTableInfoCache($table);
-    $this->rebuildDefaultsTrigger($new_name);
+    // Rename indexes.
+    $schema = $this->tableSchema($this->connection->prefixTables('{' . strtoupper($table) . '}', TRUE));
+    if ($schema) {
+      $stmt = $this->connection->query("SELECT nvl((select identifier from long_identifiers where 'L#'||to_char(id)= index_name),index_name) index_name FROM all_indexes WHERE table_name= ? and owner= ?", array($this->oid($new_name, FALSE, FALSE), $schema));
+    }
+    else {
+      $stmt = $this->connection->query("SELECT nvl((select identifier from long_identifiers where 'L#'||to_char(id)= index_name),index_name) index_name FROM user_indexes WHERE table_name= ?", array($this->oid($new_name, FALSE, FALSE)));
+    }
+    while ($row = $stmt->fetchObject()) {
+      $this->connection->query('ALTER INDEX ' . $this->oid($row->index_name, TRUE) . ' RENAME TO ' . $this->oid(str_replace(strtoupper($table), strtoupper($new_name), $row->index_name), FALSE));
+    }
+
+    $this->cleanUpSchema($table, $new_name);
   }
 
   /**
@@ -432,6 +429,10 @@ class Schema extends DatabaseSchema {
 
     if ($info->sequence_name) {
       $this->connection->query('DROP SEQUENCE ' . $info->sequence_name);
+    }
+
+    if (!$this->tableExists($table)) {
+      return FALSE;
     }
 
     $this->connection->query('DROP TABLE ' . $this->oid($table, TRUE) . ' CASCADE CONSTRAINTS PURGE');
@@ -468,8 +469,7 @@ class Schema extends DatabaseSchema {
     }
 
     $query  = 'ALTER TABLE ' . $this->oid($table, TRUE) . ' ADD (';
-    $query .= $this->createFieldSql($field, $this->processField($spec));
-    $query .= ')';
+    $query .= $this->createFieldSql($field, $this->processField($spec)) . ')';
 
     $this->connection->query($query);
 
@@ -499,9 +499,7 @@ class Schema extends DatabaseSchema {
       }
     }
 
-    $this->resetLongIdentifiers();
-    $this->removeTableInfoCache($table);
-    $this->rebuildDefaultsTrigger($table);
+    $this->cleanUpSchema($table);
   }
 
   /**
@@ -514,16 +512,14 @@ class Schema extends DatabaseSchema {
    */
   public function dropField($table, $field) {
     $info = $this->getTableSerialInfo($table);
-    if (isset($info->sequence_name) && $info->sequence_name && $this->oid($field, FALSE, FALSE) == $info->field_name) {
+    if (!empty($info->sequence_name) && $this->oid($field, FALSE, FALSE) == $info->field_name) {
       $this->failsafeDdl('DROP TRIGGER {' . $info->trigger_name . '}');
       $this->failsafeDdl('DROP SEQUENCE {' . $info->sequence_name . '}');
     }
 
     try {
       $this->connection->query('ALTER TABLE ' . $this->oid($table, TRUE) . ' DROP COLUMN ' . $this->oid($field));
-      $this->resetLongIdentifiers();
-      $this->removeTableInfoCache($table);
-      $this->rebuildDefaultsTrigger($table);
+      $this->cleanUpSchema($table);
 
       return TRUE;
     }
@@ -654,7 +650,7 @@ class Schema extends DatabaseSchema {
     $idx = array();
     while ($row = $stmt->fetchObject()) {
       if (!isset($idx[$row->index_name])) {
-         $idx[$row->index_name] = array();
+        $idx[$row->index_name] = array();
       }
       $idx[$row->index_name][] = $row->exp ? $row->exp : $row->col;
     }
@@ -754,7 +750,7 @@ class Schema extends DatabaseSchema {
   public function changeField($table, $field, $field_new, $spec, $new_keys = array()) {
     $info = $this->getTableSerialInfo($table);
 
-    if (isset($info->sequence_name) && $info->sequence_name && $this->oid($field, FALSE, FALSE) == $info->field_name) {
+    if (!empty($info->sequence_name) && $this->oid($field, FALSE, FALSE) == $info->field_name) {
       $this->failsafeDdl('DROP TRIGGER {' . $info->trigger_name . '}');
       $this->failsafeDdl('DROP SEQUENCE {' . $info->sequence_name . '}');
     }
@@ -782,16 +778,14 @@ class Schema extends DatabaseSchema {
       $this->createKeys($table, $new_keys);
     }
 
-    if (isset($info->sequence_name) && $info->sequence_name && $this->oid($field, FALSE, FALSE) == $info->field_name) {
+    if (!empty($info->sequence_name) && $this->oid($field, FALSE, FALSE) == $info->field_name) {
       $statements = $this->createSerialSql($table, $this->oid($field_new, FALSE, FALSE), $info->sequence_restart);
       foreach ($statements as $statement) {
         $this->connection->query($statement);
       }
     }
 
-    $this->resetLongIdentifiers();
-    $this->removeTableInfoCache($table);
-    $this->rebuildDefaultsTrigger($table);
+    $this->cleanUpSchema($table);
   }
 
   protected function createIndexSql($table, $name, $fields) {
@@ -812,27 +806,6 @@ class Schema extends DatabaseSchema {
     $sql[] = $query;
 
     return $sql;
-  }
-
-  public function renameIndexes($table,$new_name) {
-    global $oracle_debug;
-
-    $schema = $this->tableSchema($this->connection->prefixTables('{' . strtoupper($table) . '}', TRUE));
-
-    $oracle_debug = TRUE;
-
-    if ($schema) {
-      $stmt = $this->connection->query("SELECT nvl((select identifier from long_identifiers where 'L#'||to_char(id)= index_name),index_name) index_name FROM all_indexes WHERE table_name= ? and owner= ?", array($this->oid($new_name, FALSE, FALSE), $schema));
-    }
-    else {
-      $stmt = $this->connection->query("SELECT nvl((select identifier from long_identifiers where 'L#'||to_char(id)= index_name),index_name) index_name FROM user_indexes WHERE table_name= ?", array($this->oid($new_name, FALSE, FALSE)));
-    }
-
-    while ($row = $stmt->fetchObject()) {
-      $this->connection->query('ALTER INDEX ' . $this->oid($row->index_name, TRUE) . ' RENAME TO ' . $this->oid(str_replace(strtoupper($table), strtoupper($new_name), $row->index_name), FALSE));
-    }
-
-    $oracle_debug = FALSE;
   }
 
   public function indexExists($table, $name) {
@@ -970,5 +943,15 @@ class Schema extends DatabaseSchema {
     }
 
     throw new DatabaseException('Not implemented, see https://drupal.org/node/2056133.');
+  }
+
+  private function cleanUpSchema($cache_table, $trigger_table = '') {
+    if (!$trigger_table) {
+      $trigger_table = $cache_table;
+    }
+
+    $this->resetLongIdentifiers();
+    $this->removeTableInfoCache($cache_table);
+    $this->rebuildDefaultsTrigger($trigger_table);
   }
 }
