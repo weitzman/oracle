@@ -39,7 +39,7 @@ class Tasks extends InstallTasks {
   protected function connect() {
     try {
       // This doesn't actually test the connection.
-      db_set_active();
+      Database::setActiveConnection();
 
       // @TODO: make this dynamic.
       $dir = getcwd() . '/drivers/lib/Drupal/Driver/Database/oracle/resources';

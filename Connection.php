@@ -17,7 +17,8 @@ define('ORACLE_EMPTY_STRING_REPLACER', '^');
 /**
  * Maximum oracle identifier length (e.g. table names cannot exceed this length).
  */
-define('ORACLE_IDENTIFIER_MAX_LENGTH', 30);
+// @TODO: make dynamic. 30 for <OD11, 128 for OD12+.
+define('ORACLE_IDENTIFIER_MAX_LENGTH', 128);
 
 /**
  * Prefix used for long identifier keys.
@@ -111,18 +112,19 @@ class Connection extends DatabaseConnection {
    * {@inheritdoc}
    */
   public static function open(array &$connection_options = array()) {
-    // Default to TCP connection on port 5432.
+    // Default to TCP connection on port 1521.
     if (empty($connection_options['port'])) {
       $connection_options['port'] = 1521;
     }
 
-    if ($connection_options['host'] == 'USETNS') {
+    if ($connection_options['host'] === 'USETNS') {
       // Use database as TNSNAME.
       $dsn = 'oci:dbname=' . $connection_options['database'] . ';charset=AL32UTF8';
     }
     else {
       // Use host/port/database.
-      $dsn = 'oci:dbname=//' . $connection_options['host'] . ':' . $connection_options['port'] . '/' . $connection_options['database'] . ';charset=AL32UTF8';
+      $tns = "(DESCRIPTION = (ADDRESS = (PROTOCOL = TCP)(HOST = {$connection_options['host']})(PORT = {$connection_options['port']})) (CONNECT_DATA = (SERVICE_NAME = {$connection_options['database']}) (SID = {$connection_options['database']})))";
+      $dsn = "oci:dbname={$tns};charset=AL32UTF8";
     }
 
     // Allow PDO options to be overridden.
@@ -429,27 +431,33 @@ class Connection extends DatabaseConnection {
   }
 
   private function escapeAnsi($query) {
-    if (preg_match("/^select /i", $query) && !preg_match("/^select(.*)from/ims", $query)) {
+    if (preg_match('/^select /i', $query) &&
+      !preg_match('/^select(.*)from/ims', $query)) {
       $query .= ' FROM DUAL';
     }
 
     $search = array(
-      '/("\w+?")/e',
       "/([^\s\(]+) & ([^\s]+) = ([^\s\)]+)/",
       "/([^\s\(]+) & ([^\s]+) <> ([^\s\)]+)/", // bitand
       '/^RELEASE SAVEPOINT (.*)$/',
       '/\((.*) REGEXP (.*)\)/',
     );
-
     $replace = array(
-      "strtoupper('\\1')",
       "BITAND(\\1,\\2) = \\3",
       "BITAND(\\1,\\2) <> \\3",
-      "begin null; end;",
+      'begin null; end;',
       "REGEXP_LIKE(\\1,\\2)",
     );
+    $query = preg_replace($search, $replace, $query);
 
-    return str_replace('\\"', '"', preg_replace($search, $replace, $query));
+    $query = preg_replace_callback(
+      '/("\w+?")/',
+      function ($matches) {
+        return strtoupper($matches[1]);
+      },
+      $query);
+
+    return str_replace('\\"', '"', $query);
   }
 
   private function escapeEmptyLiteral($match) {
@@ -476,6 +484,11 @@ class Connection extends DatabaseConnection {
   }
 
   private function escapeReserved($query) {
+    // @TODO: This function is broken for PHP7.
+    if (PHP_MAJOR_VERSION > 5) {
+      return $query;
+    }
+
     if (is_object($query)) {
       $query = $query->getQueryString();
     }
