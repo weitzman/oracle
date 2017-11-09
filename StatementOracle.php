@@ -1,12 +1,10 @@
 <?php
 
-/**
- * @file
- * Definition of Drupal\Driver\Database\oracle\StatementOracle
- */
-
 namespace Drupal\Driver\Database\oracle;
 
+/**
+ * Oracle implementation of \PDOStatement.
+ */
 class StatementOracle extends \PDOStatement {
 
   /**
@@ -18,11 +16,17 @@ class StatementOracle extends \PDOStatement {
    */
   public $dbh;
 
+  /**
+   * {@inheritdoc}
+   */
   protected function __construct(Connection $dbh) {
     $this->dbh = $dbh;
     $this->setFetchMode(\PDO::FETCH_OBJ);
   }
 
+  /**
+   * {@inheritdoc}
+   */
   public function execute($args = array(), $options = array()) {
     if (isset($options['fetch'])) {
       if (is_string($options['fetch'])) {
@@ -44,4 +48,5 @@ class StatementOracle extends \PDOStatement {
 
     return $return;
   }
+
 }

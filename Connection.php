@@ -1,21 +1,13 @@
 <?php
 
-/**
- * @file
- * Definition of Drupal\Driver\Database\oracle\Connection
- */
-
 namespace Drupal\Driver\Database\oracle;
 
-use Drupal\Core\Database\DatabaseException;
 use Drupal\Core\Database\DatabaseExceptionWrapper;
 use Drupal\Core\Database\IntegrityConstraintViolationException;
 use Drupal\Core\Database\DatabaseNotFoundException;
-use Drupal\Core\Database\TransactionCommitFailedException;
 
 use Drupal\Core\Database\Database;
 use Drupal\Core\Database\Connection as DatabaseConnection;
-use Drupal\Driver\Database\oracle\StatementBase;
 
 /**
  * Used to replace '' character in queries.

@@ -1,21 +1,18 @@
 <?php
 
-/**
- * @file
- * Definition of Drupal\Driver\Database\oracle\Select
- */
-
 namespace Drupal\Driver\Database\oracle;
 
 use Drupal\Core\Database\Query\Select as QuerySelect;
 use Drupal\Core\Database\Query\SelectInterface;
 
 /**
- * @addtogroup database
+ * Oracle implementation of \Drupal\Core\Database\Query\Select.
  */
-
 class Select extends QuerySelect {
 
+  /**
+   * {@inheritdoc}
+   */
   public function __toString() {
     // Create a sanitized comment string to prepend to the query.
     $comments = $this->connection->makeComment($this->comments);
@@ -27,7 +24,7 @@ class Select extends QuerySelect {
           $field = $this->fields[$group_field];
           $group_field = (isset($field['table']) ? $field['table'] . '.' : '') . $field['field'];
         }
-        else if (isset($this->expressions[$group_field])) {
+        elseif (isset($this->expressions[$group_field])) {
           $expression = $this->expressions[$group_field];
           $group_field = $expression['expression'];
         }
@@ -68,7 +65,8 @@ class Select extends QuerySelect {
     }
     $query .= implode(', ', $fields);
 
-    // FROM - We presume all queries have a FROM, as any query that doesn't won't need the query builder anyway.
+    // FROM - We presume all queries have a FROM, as any query that doesn't
+    // won't need the query builder anyway.
     $query .= "\nFROM ";
     foreach ($this->tables as $alias => $table) {
       $query .= "\n";
@@ -76,7 +74,7 @@ class Select extends QuerySelect {
         $query .= $table['join type'] . ' JOIN ';
       }
 
-      // If the table is a subquery, compile it and integrate it into this query.
+      // If the table is a subquery, compile it and integrate it into the query.
       if ($table['table'] instanceof SelectInterface) {
         $table_string = '(' . (string) $table['table'] . ')';
       }
@@ -86,7 +84,7 @@ class Select extends QuerySelect {
 
       // Don't use the AS keyword for table aliases, as some
       // databases don't support it (e.g., Oracle).
-      $query .=  $table_string . ' ' . $table['alias'];
+      $query .= $table_string . ' ' . $table['alias'];
 
       if (!empty($table['condition'])) {
         $query .= ' ON ' . $table['condition'];
@@ -95,7 +93,7 @@ class Select extends QuerySelect {
 
     // WHERE.
     if (count($this->where)) {
-      if(!$this->where->compiled()) {
+      if (!$this->where->compiled()) {
         $this->where->compile($this->connection, $this);
       }
 
@@ -110,8 +108,10 @@ class Select extends QuerySelect {
 
     // HAVING.
     if (count($this->having)) {
-      if(!$this->having->compiled())
-      $this->having->compile($this->connection, $this);
+      if (!$this->having->compiled()) {
+        $this->having->compile($this->connection, $this);
+      }
+
       // There is an implicit string cast on $this->having.
       $query .= "\nHAVING " . $this->having;
     }
@@ -138,9 +138,10 @@ class Select extends QuerySelect {
       $start = ((int) $this->range['start'] + 1);
       $end = ((int) $this->range['length'] + (int) $this->range['start']);
 
-      $query= 'SELECT * FROM (SELECT TAB.*, ROWNUM ' . ORACLE_ROWNUM_ALIAS . ' FROM (' . $query . ') TAB) WHERE ' . ORACLE_ROWNUM_ALIAS . ' BETWEEN ' . $start . " AND " . $end;
+      $query = 'SELECT * FROM (SELECT TAB.*, ROWNUM ' . ORACLE_ROWNUM_ALIAS . ' FROM (' . $query . ') TAB) WHERE ' . ORACLE_ROWNUM_ALIAS . ' BETWEEN ' . $start . ' AND ' . $end;
     }
 
     return $query;
   }
+
 }

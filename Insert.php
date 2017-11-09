@@ -1,10 +1,5 @@
 <?php
 
-/**
- * @file
- * Definition of Drupal\Driver\Database\oracle\Insert
- */
-
 namespace Drupal\Driver\Database\oracle;
 
 use Drupal\Core\Database;

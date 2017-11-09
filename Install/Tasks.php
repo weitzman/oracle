@@ -1,16 +1,10 @@
 <?php
 
-/**
- * @file
- * Definition of Drupal\Driver\Database\oracle\Install\Tasks
- */
-
 namespace Drupal\Driver\Database\oracle\Install;
 
 use Drupal\Core\Database\Install\Tasks as InstallTasks;
 use Drupal\Core\Database\Database;
 use Drupal\Driver\Database\oracle\Connection;
-use Drupal\Core\Database\DatabaseNotFoundException;
 
 /**
  * Specifies installation tasks for Oracle and equivalent databases.
@@ -23,7 +17,7 @@ class Tasks extends InstallTasks {
    */
   protected $pdoDriver = 'oci';
 
-  protected $ORACLE_MAX_PDO_BIND_LENGTH_LIMITS = array(4000, 1332, 665);
+  private $ORACLE_MAX_PDO_BIND_LENGTH_LIMITS = array(4000, 1332, 665);
 
   /**
    * Returns a human-readable name string for Oracle and equivalent databases.
@@ -33,7 +27,7 @@ class Tasks extends InstallTasks {
   }
 
   /**
-   * Returns the minimum version for Oracle.
+   * {@inheritdoc}
    */
   public function minimumVersion() {
     return NULL;
@@ -65,6 +59,7 @@ class Tasks extends InstallTasks {
     }
     catch (\Exception $e) {
       if ($e->getCode() == Connection::DATABASE_NOT_FOUND) {
+
         // Remove the database string from connection info.
         $connection_info = Database::getConnectionInfo();
         $database = $connection_info['default']['database'];

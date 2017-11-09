@@ -1,16 +1,9 @@
 <?php
 
-/**
- * @file
- * Definition of Drupal\Driver\Database\oracle\Schema
- */
-
 namespace Drupal\Driver\Database\oracle;
 
 use Drupal\Component\Utility\String;
-use Drupal\Core\Database\Database;
-use Drupal\Core\Database\Query\Condition;
-use Drupal\Core\Database\DatabaseException;
+use Drupal\Core\Database\DatabaseExceptionWrapper;
 use Drupal\Core\Database\SchemaObjectExistsException;
 use Drupal\Core\Database\SchemaObjectDoesNotExistException;
 use Drupal\Core\Database\Schema as DatabaseSchema;
@@ -295,7 +288,7 @@ class Schema extends DatabaseSchema {
    * This maps a generic data type in combination with its data size
    * to the engine-specific data type.
    */
-  function getFieldTypeMap() {
+  public function getFieldTypeMap() {
     // Put :normal last so it gets preserved by array_flip. This makes
     // it much easier for modules (such as schema.module) to map
     // database types back into schema types.
@@ -595,7 +588,7 @@ class Schema extends DatabaseSchema {
    * @param $fields
    *   An array of field names.
    */
-  function addUniqueKey($table, $name, $fields) {
+  public function addUniqueKey($table, $name, $fields) {
     $this->connection->query('ALTER TABLE ' . $this->oid($table, TRUE) . ' ADD CONSTRAINT ' . $this->oid('UK_' . $table . '_' . $name) . ' UNIQUE (' . $this->createColsSql($fields) . ')');
   }
 
@@ -621,8 +614,8 @@ class Schema extends DatabaseSchema {
    * @param $fields
    *   An array of field names.
    */
-  public function addIndex($table, $name, $fields) {
-    $sql = $this->createIndexSql($table, $name, $fields);
+  public function addIndex($table, $name, $fields, array $specs) {
+    $sql = $this->createIndexSql($table, $name, $fields, $specs);
     foreach ($sql as $stmt) {
       $this->connection->query($stmt);
     }
@@ -942,7 +935,7 @@ class Schema extends DatabaseSchema {
       throw new SchemaObjectExistsException(String::format("Cannot copy @source to @destination: table @destination already exists.", array('@source' => $source, '@destination' => $destination)));
     }
 
-    throw new DatabaseException('Not implemented, see https://drupal.org/node/2056133.');
+    throw new DatabaseExceptionWrapper('Not implemented, see https://drupal.org/node/2056133.');
   }
 
   private function cleanUpSchema($cache_table, $trigger_table = '') {
@@ -954,4 +947,5 @@ class Schema extends DatabaseSchema {
     $this->removeTableInfoCache($cache_table);
     $this->rebuildDefaultsTrigger($trigger_table);
   }
+
 }
