@@ -1,3 +1,6 @@
 Two simple steps to install new Drupal 8 with Oracle driver:
-1. Download driver from drupal.org to DRUPAL_ROOT/drivers/lib/Drupal/Driver/Database/oracle directory.
+
+1. Download driver from drupal.org to this directory:
+DRUPAL_ROOT/drivers/lib/Drupal/Driver/Database/oracle
+
 2. Install Drupal as usual.

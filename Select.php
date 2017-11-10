@@ -13,6 +13,15 @@ class Select extends QuerySelect {
   /**
    * {@inheritdoc}
    */
+  public function arguments() {
+    return array_map(function ($value) {
+      return $value === '' ? ORACLE_EMPTY_STRING_REPLACER : $value;
+    }, parent::arguments());
+  }
+
+  /**
+   * {@inheritdoc}
+   */
   public function __toString() {
     // Create a sanitized comment string to prepend to the query.
     $comments = $this->connection->makeComment($this->comments);
@@ -92,13 +101,13 @@ class Select extends QuerySelect {
     }
 
     // WHERE.
-    if (count($this->where)) {
-      if (!$this->where->compiled()) {
-        $this->where->compile($this->connection, $this);
+    if (count($this->condition)) {
+      if (!$this->condition->compiled()) {
+        $this->condition->compile($this->connection, $this);
       }
 
       // There is an implicit string cast on $this->condition.
-      $query .= "\nWHERE " . $this->where;
+      $query .= "\nWHERE " . $this->condition;
     }
 
     // GROUP BY.

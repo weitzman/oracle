@@ -16,9 +16,10 @@ define('ORACLE_EMPTY_STRING_REPLACER', '^');
 
 /**
  * Maximum oracle identifier length (e.g. table names cannot exceed this length).
+ *
+ * @TODO: make dynamic. 30 is a limit for v11. In OD12+ has new limit of 128.
  */
-// @TODO: make dynamic. 30 for <OD11, 128 for OD12+.
-define('ORACLE_IDENTIFIER_MAX_LENGTH', 128);
+define('ORACLE_IDENTIFIER_MAX_LENGTH', 30);
 
 /**
  * Prefix used for long identifier keys.
@@ -31,16 +32,16 @@ define('ORACLE_LONG_IDENTIFIER_PREFIX', 'L#');
 define('ORACLE_BLOB_PREFIX', 'B^#');
 
 /**
- * Maximum length for a string value in a table column in oracle.
+ * Maximum length (in bytes) for a string value in a table column in oracle.
  * Affects schema.inc table creation.
  */
-define('ORACLE_MAX_VARCHAR2_LENGTH', 4000);
+define('ORACLE_MAX_VARCHAR2_LENGTH', 1332);
 
 /**
  * Maximum length of a string that PDO_OCI can handle.
  * Affects runtime blob creation.
  */
-define('ORACLE_MIN_PDO_BIND_LENGTH', 4000);
+define('ORACLE_MIN_PDO_BIND_LENGTH', 1332);
 
 /**
  * Alias used for queryRange filtering (we have to remove that from resultsets).
@@ -162,6 +163,7 @@ class Connection extends DatabaseConnection {
         case Database::RETURN_STATEMENT:
           return $stmt;
         case Database::RETURN_AFFECTED:
+          $stmt->allowRowCount = TRUE;
           return $stmt->rowCount();
         case Database::RETURN_INSERT_ID:
           return (isset($options['sequence_name']) ? $this->lastInsertId($options['sequence_name']) : FALSE);
@@ -484,35 +486,57 @@ class Connection extends DatabaseConnection {
   }
 
   private function escapeReserved($query) {
-    // @TODO: This function is broken for PHP7.
-    if (PHP_MAJOR_VERSION > 5) {
-      return $query;
-    }
-
     if (is_object($query)) {
       $query = $query->getQueryString();
     }
     $ddl = !((boolean) preg_match('/^(select|insert|update|delete)/i', $query));
 
-    $search = array(
-      "/({)(\w+)(})/e", // escapes all table names
-      "/({L#)([0-9]+)(})/e", // escapes long id
-      "/(\:)(uid|session|file|access|mode|comment|desc|size|start|end|increment)/e",
-      "/(<uid>|<session>|<file>|<access>|<mode>|<comment>|<desc>|<size>" . ($ddl ? '' : '|<date>') . ")/e",
-      '/([\(\.\s,\=])(uid|session|file|access|mode|comment|desc|size' . ($ddl ? '' : '|date') . ')([,\s\=)])/e',
-      '/([\(\.\s,])(uid|session|file|access|mode|comment|desc|size' . ($ddl ? '' : '|date') . ')$/e',
-    );
+    // Escapes all table names.
+    $query = preg_replace_callback(
+      '/({)(\w+)(})/',
+      function ($matches) {
+        return '"{' . strtoupper($matches[2]) . '}"';
+      },
+      $query);
 
-    $replace = array(
-      "'\"\\1'.strtoupper('\\2').'\\3\"'",
-      "'\"\\1'.strtoupper('\\2').'\\3\"'",
-      "'\\1'.'db_'.'\\2'.'\\3'", // @TODO: count arguments problem.
-      "strtoupper('\"\\1\"')",
-      "'\\1'.strtoupper('\"\\2\"').'\\3'",
-      "'\\1'.strtoupper('\"\\2\"')",
-    );
+    // Escapes long id.
+    $query = preg_replace_callback(
+      '/({L#)([\d]+)(})/',
+      function ($matches) {
+        return '"{L#' . strtoupper($matches[2]) . '}"';
+      },
+      $query);
 
-    return preg_replace($search, $replace, $query);
+    // Escapes reserved names.
+    $query = preg_replace_callback(
+      '/(\:)(uid|session|file|access|mode|comment|desc|size|start|end|increment)/',
+      function ($matches) {
+        return $matches[1] . 'db_' . $matches[2];
+      },
+      $query);
+
+    $query = preg_replace_callback(
+      '/(<uid>|<session>|<file>|<access>|<mode>|<comment>|<desc>|<size>' . ($ddl ? '' : '|<date>') . ')/',
+      function ($matches) {
+        return '"' . strtoupper($matches[1]) . '"';
+      },
+      $query);
+
+    $query = preg_replace_callback(
+      '/([\(\.\s,\=])(uid|session|file|access|mode|comment|desc|size' . ($ddl ? '' : '|date') . ')([,\s\=)])/',
+      function ($matches) {
+        return $matches[1] . '"' . strtoupper($matches[2]) . '"' . $matches[3];
+      },
+      $query);
+
+    $query = preg_replace_callback(
+      '/([\(\.\s,])(uid|session|file|access|mode|comment|desc|size' . ($ddl ? '' : '|date') . ')$/',
+      function ($matches) {
+        return $matches[1] . '"' . strtoupper($matches[2]) . '"';
+      },
+      $query);
+
+    return $query;
   }
 
   public function removeFromCachedStatements($query) {
@@ -568,20 +592,13 @@ class Connection extends DatabaseConnection {
   }
 
   public function cleanupArgValue($value) {
-    if (is_string($value)) {
-      if ($value == '') {
-        return ORACLE_EMPTY_STRING_REPLACER;
-      }
-      elseif (strlen($value) > $this->max_varchar2_bind_size) {
-        return $this->writeBlob($value);
-      }
-      else {
-        return $value;
-      }
+    if ($value === '') {
+      return ORACLE_EMPTY_STRING_REPLACER;
     }
-    else {
-      return $value;
+    if (is_string($value) && strlen($value) > $this->max_varchar2_bind_size) {
+      return $this->writeBlob($value);
     }
+    return $value;
   }
 
   public function cleanupArgs($args) {

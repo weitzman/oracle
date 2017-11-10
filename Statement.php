@@ -10,6 +10,15 @@ use Drupal\Core\Database\Statement as DatabaseStatement;
 class Statement extends DatabaseStatement implements \IteratorAggregate {
 
   /**
+   * Reference to the database connection object for this statement.
+   *
+   * The name $dbh is inherited from \PDOStatement.
+   *
+   * @var \Drupal\Driver\Database\oracle\Connection
+   */
+  public $dbh;
+
+  /**
    * {@inheritdoc}
    */
   public function execute($args = array(), $options = array()) {
@@ -36,8 +45,8 @@ class Statement extends DatabaseStatement implements \IteratorAggregate {
   /**
    * {@inheritdoc}
    */
-  public function fetchObject($class_name = "stdClass", $constructor_args = NULL) {
-    return $this->dbh->cleanupFetched(parent::fetchObject($class_name, $constructor_args));
+  public function fetchObject($class_name = "stdClass", array $ctor_args = array()) {
+    return $this->dbh->cleanupFetched(parent::fetchObject($class_name, $ctor_args));
   }
 
   /**
@@ -50,8 +59,8 @@ class Statement extends DatabaseStatement implements \IteratorAggregate {
   /**
    * {@inheritdoc}
    */
-  public function fetchAll($fetch_style = NULL, $fetch_argument = NULL, $ctor_args = NULL) {
-    return $this->dbh->cleanupFetched(parent::fetchAll($fetch_style));
+  public function fetchAll($mode = NULL, $column_index = NULL, $ctor_args = NULL) {
+    return $this->dbh->cleanupFetched(parent::fetchAll($mode));
   }
 
   /**

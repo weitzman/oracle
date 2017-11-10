@@ -2,15 +2,19 @@
 
 namespace Drupal\Driver\Database\oracle;
 
-use Drupal\Component\Utility\String;
+use Drupal\Component\Utility\SafeMarkup;
 use Drupal\Core\Database\DatabaseExceptionWrapper;
 use Drupal\Core\Database\SchemaObjectExistsException;
 use Drupal\Core\Database\SchemaObjectDoesNotExistException;
 use Drupal\Core\Database\Schema as DatabaseSchema;
 
+/**
+ * Oracle implementation of \Drupal\Core\Database\Schema.
+ */
 class Schema extends DatabaseSchema {
+
   /**
-   * Cache table informations used for InsertQuery and UpdateQuery in the query.inc
+   * Cache table information used for InsertQuery and UpdateQuery.
    */
   private static $tableInformation = array();
 
@@ -293,6 +297,8 @@ class Schema extends DatabaseSchema {
     // it much easier for modules (such as schema.module) to map
     // database types back into schema types.
     $map = array(
+      'varchar_ascii:normal' => 'varchar2',
+
       'varchar:normal' => 'varchar2',
       'char:normal' => 'char',
 
@@ -929,10 +935,10 @@ class Schema extends DatabaseSchema {
    */
   public function copyTable($source, $destination) {
     if (!$this->tableExists($source)) {
-      throw new SchemaObjectDoesNotExistException(String::format("Cannot copy @source to @destination: table @source doesn't exist.", array('@source' => $source, '@destination' => $destination)));
+      throw new SchemaObjectDoesNotExistException(SafeMarkup::format("Cannot copy @source to @destination: table @source doesn't exist.", array('@source' => $source, '@destination' => $destination)));
     }
     if ($this->tableExists($destination)) {
-      throw new SchemaObjectExistsException(String::format("Cannot copy @source to @destination: table @destination already exists.", array('@source' => $source, '@destination' => $destination)));
+      throw new SchemaObjectExistsException(SafeMarkup::format("Cannot copy @source to @destination: table @destination already exists.", array('@source' => $source, '@destination' => $destination)));
     }
 
     throw new DatabaseExceptionWrapper('Not implemented, see https://drupal.org/node/2056133.');
