@@ -1,6 +1,8 @@
-Two simple steps to install new Drupal 8 with Oracle driver:
+There are two ways to install Drupal 8 Oracle Database Driver:
 
-1. Download driver from drupal.org to this directory:
+1. Composer way. You should add one more installer-paths to yours composer.json:
+"web/drivers/lib/Drupal/Driver/Database/{$name}":["type:drupal-database-driver"]
+Do a standard command: `composer require drupal/oracle`.
+
+2. Download an archive from drupal.org and place the code to this directory:
 DRUPAL_ROOT/drivers/lib/Drupal/Driver/Database/oracle
-
-2. Install Drupal as usual.
