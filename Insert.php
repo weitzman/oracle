@@ -5,12 +5,22 @@ namespace Drupal\Driver\Database\oracle;
 use Drupal\Core\Database;
 use Drupal\Core\Database\Query\Insert as QueryInsert;
 
+/**
+ * Oracle implementation of \Drupal\Core\Database\Query\Insert.
+ */
 class Insert extends QueryInsert {
+
+  /**
+   * {@inheritdoc}
+   */
   public function __construct($connection, $table, array $options = array()) {
     parent::__construct($connection, $table, $options);
     $this->queryOptions['table_name'] = $table;
   }
 
+  /**
+   * {@inheritdoc}
+   */
   public function execute() {
     if (!$this->preExecute()) {
       return NULL;
@@ -71,6 +81,9 @@ class Insert extends QueryInsert {
     return $last_insert_id;
   }
 
+  /**
+   * {@inheritdoc}
+   */
   public function __toString() {
     $info = $this->connection->schema()->getTableInfo($this->table);
 
@@ -105,7 +118,7 @@ class Insert extends QueryInsert {
         // If there are no values, then this is a default-only query.
         // We still need to handle that.
         $placeholders = array_fill(0, count($this->defaultFields), 'default');
-        $values = '(' . implode(', ', $placeholders) .')';
+        $values = '(' . implode(', ', $placeholders) . ')';
       }
       else {
         // Meaningless query that will not be executed.
@@ -117,4 +130,5 @@ class Insert extends QueryInsert {
 
     return $query;
   }
+
 }

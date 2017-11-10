@@ -10,6 +10,7 @@ use Drupal\Driver\Database\oracle\Connection;
  * Specifies installation tasks for Oracle and equivalent databases.
  */
 class Tasks extends InstallTasks {
+
   /**
    * The PDO driver name for Oracle and equivalent databases.
    *
@@ -17,10 +18,10 @@ class Tasks extends InstallTasks {
    */
   protected $pdoDriver = 'oci';
 
-  private $ORACLE_MAX_PDO_BIND_LENGTH_LIMITS = array(4000, 1332, 665);
+  private $pdoBindLengthLimits = array(4000, 1332, 665);
 
   /**
-   * Returns a human-readable name string for Oracle and equivalent databases.
+   * {@inheritdoc}
    */
   public function name() {
     return t('Oracle');
@@ -34,7 +35,7 @@ class Tasks extends InstallTasks {
   }
 
   /**
-   * Check if we can connect to the database.
+   * {@inheritdoc}
    */
   protected function connect() {
     try {
@@ -71,24 +72,33 @@ class Tasks extends InstallTasks {
     return TRUE;
   }
 
+  /**
+   * Oracle helper for install tasks.
+   */
   private function oracleQuery($sql, $args = NULL) {
     return Database::getConnection()->oracleQuery($sql, $args);
   }
 
+  /**
+   * Oracle helper for install tasks.
+   */
   private function determineSupportedBindSize() {
     $this->failsafeDdl('create table bind_test (val varchar2(4000 char))');
     $ok = FALSE;
 
-    foreach ($this->ORACLE_MAX_PDO_BIND_LENGTH_LIMITS as $length) {
+    foreach ($this->pdoBindLengthLimits as $length) {
       try {
         syslog(LOG_ERR, "trying to bind $length bytes...");
         $determined_size = $length;
-        $this->oracleQuery('insert into bind_test values (?)', array(str_pad('a', $length, 'a')));
+        $this->oracleQuery('insert into bind_test values (?)', array(
+          str_pad('a', $length, 'a'),
+        ));
         syslog(LOG_ERR, "bind succeeded.");
         $ok = TRUE;
         break;
       }
-      catch (\Exception $e) {}
+      catch (\Exception $e) {
+      }
     }
 
     if (!$ok) {
@@ -99,10 +109,13 @@ class Tasks extends InstallTasks {
     $this->failsafeDdl("create table oracle_bind_size as select $determined_size val from dual");
   }
 
+  /**
+   * Oracle helper for install tasks.
+   */
   private function createSpObjects($dir_path) {
     $dir = opendir($dir_path);
 
-    while($name = readdir($dir)) {
+    while ($name = readdir($dir)) {
       if (in_array($name, array('.', '..', '.DS_Store', 'CVS'))) {
         continue;
       }
@@ -112,6 +125,9 @@ class Tasks extends InstallTasks {
     }
   }
 
+  /**
+   * Oracle helper for install tasks.
+   */
   private function createSpObject($dir_path) {
     $dir = opendir($dir_path);
     $spec = $body = "";
@@ -131,9 +147,12 @@ class Tasks extends InstallTasks {
     }
   }
 
+  /**
+   * Oracle helper for install tasks.
+   */
   private function createObjects($dir_path) {
     $dir = opendir($dir_path);
-    while($name = readdir($dir)) {
+    while ($name = readdir($dir)) {
       if (in_array($name, array('.', '..', '.DS_Store', 'CVS'))) {
         continue;
       }
@@ -141,6 +160,9 @@ class Tasks extends InstallTasks {
     }
   }
 
+  /**
+   * Oracle helper for install tasks.
+   */
   private function createObject($file_path) {
     syslog(LOG_ERR, "creating object: $file_path");
 
@@ -152,8 +174,11 @@ class Tasks extends InstallTasks {
     }
   }
 
+  /**
+   * Oracle helper for install tasks.
+   */
   private function createFailsafeObjects($dir_path) {
-	  $dir = opendir($dir_path);
+    $dir = opendir($dir_path);
 
     while ($name = readdir($dir)) {
       if (in_array($name, array('.', '..', '.DS_Store', 'CVS'))) {
@@ -164,10 +189,16 @@ class Tasks extends InstallTasks {
     }
   }
 
+  /**
+   * Oracle helper for install tasks.
+   */
   private function failsafeDdl($ddl) {
     $this->oracleQuery("begin execute immediate '" . str_replace("'", "''", $ddl) . "'; exception when others then null; end;");
   }
 
+  /**
+   * Oracle helper for install tasks.
+   */
   private function getPhpContents($filename) {
     if (is_file($filename)) {
       ob_start();
@@ -181,4 +212,5 @@ class Tasks extends InstallTasks {
     }
     return FALSE;
   }
+
 }
