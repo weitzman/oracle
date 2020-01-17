@@ -390,7 +390,7 @@ class Schema extends DatabaseSchema {
       'datetime:normal' => 'timestamp with local time zone',
       'timestamp:normal' => 'timestamp',
       'time:normal'     => 'timestamp',
-    );
+    ];
 
     return $map;
   }
