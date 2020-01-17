@@ -282,23 +282,28 @@ class Schema extends DatabaseSchema {
     // Update table_information "cache".
     $table_information = $this->queryTableInformation($name);
 
+    $sequences = [];
+
     foreach ($table['fields'] as $field_name => $field) {
+      $field = $this->processField($field);
       if ($field['type'] == 'serial') {
-        $table_information->serial_fields[strtoupper($field_name)] = $field;
-        $table_information->sequences[] = strtoupper($this->connection->prefixTables($this->oid('SEQ_' . $name . '_' . $field_name, TRUE)));
+        $sequences[strtoupper($field_name)] = $this->oid('SEQ_' . $name . '_' . $field_name, FALSE, FALSE);
+        $table_information->serial_fields[strtoupper($field_name)] = $field_name;
         $statements = array_merge($statements, $this->createSerialSql($name, $field_name));
       }
-      elseif ($field['type'] == 'blob') {
-        //$statements[] = "INSERT INTO BLOB_COLUMN VALUES ('" . strtoupper($name) . "','" . strtoupper($field_name) . "')";
-      }
 
-      $field = $this->processField($field);
       if ($field['oracle_type'] == 'BLOB') {
         $table_information->blob_fields[strtoupper($field_name)] = $field_name;
       }
       elseif ($field['oracle_type'] == 'CLOB') {
         $table_information->clob_fields[strtoupper($field_name)] = $field_name;
       }
+    }
+
+    if (!empty($sequences)) {
+      $table_information->sequences = array_values($sequences);
+      // @todo Convert to new sequences
+      $table_information->sequence_name = $table_information->sequences[0];
     }
 
     $this->setTableInformation($name, $table_information);
