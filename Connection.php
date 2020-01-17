@@ -17,7 +17,7 @@ define('ORACLE_EMPTY_STRING_REPLACER', '^');
  *
  * @TODO: make dynamic. 30 is a limit for v11. In OD12+ has new limit of 128.
  */
-define('ORACLE_IDENTIFIER_MAX_LENGTH', 30);
+define('ORACLE_IDENTIFIER_MAX_LENGTH', 128);
 
 /**
  * Prefix used for long identifier keys.
@@ -34,14 +34,14 @@ define('ORACLE_BLOB_PREFIX', 'B^#');
  *
  * Affects schema.inc table creation.
  */
-define('ORACLE_MAX_VARCHAR2_LENGTH', 1332);
+define('ORACLE_MAX_VARCHAR2_LENGTH', 4000);
 
 /**
  * Maximum length of a string that PDO_OCI can handle.
  *
  * Affects runtime blob creation.
  */
-define('ORACLE_MIN_PDO_BIND_LENGTH', 1332);
+define('ORACLE_MIN_PDO_BIND_LENGTH', 4000);
 
 /**
  * Alias used for queryRange filtering (we have to remove that from resultsets).
