@@ -26,15 +26,18 @@ class Insert extends QueryInsert {
       return NULL;
     }
 
-    $info = $this->connection->schema()->queryTableInformation($this->table);
-    if (!empty($info->sequence_name)) {
-      $this->queryOptions['sequence_name'] = $info->sequence_name;
-      if (class_exists("Database")) {
-        $this->queryOptions['return'] = Database::RETURN_INSERT_ID;
-      }
-      else {
-        $this->queryOptions['return'] = 3;
-      }
+    $table_information = $this->connection->schema()->queryTableInformation($this->table);
+    // Oracle requires the table name to be specified explicitly
+    // when requesting the last insert ID, so we pass that in via
+    // the options array.
+    $options = $this->queryOptions;
+
+    if (!empty($table_information->sequences)) {
+      $options['sequence_name'] = $table_information->sequences[0];
+    }
+    // If there are no sequences then we can't get a last insert id.
+    elseif ($options['return'] == Database::RETURN_INSERT_ID) {
+      $options['return'] = Database::RETURN_NULL;
     }
 
     $stmt = $this->connection->prepareQuery((string) $this);
@@ -45,7 +48,7 @@ class Insert extends QueryInsert {
         $stmt->bindParam($key, $value);
       }
       // The SelectQuery may contain arguments, load and pass them through.
-      return $this->connection->query($stmt, array(), $this->queryOptions);
+      return $this->connection->query($stmt, array(), $options);
     }
 
     $last_insert_id = 0;
@@ -53,7 +56,7 @@ class Insert extends QueryInsert {
 
     try {
       if (empty($this->insertValues)) {
-        $last_insert_id = $this->connection->query($stmt, array(), $this->queryOptions);
+        $last_insert_id = $this->connection->query($stmt, array(), $options);
       }
       else {
         foreach ($this->insertValues as &$insert_values) {
@@ -62,7 +65,7 @@ class Insert extends QueryInsert {
             $insert_values[$idx] = $this->connection->cleanupArgValue($insert_values[$idx]);
             $stmt->bindParam(':db_insert_placeholder_' . $max_placeholder++, $insert_values[$idx]);
           }
-          $last_insert_id = $this->connection->query($stmt, $insert_values, $this->queryOptions);
+          $last_insert_id = $this->connection->query($stmt, $insert_values, $this->options);
         }
       }
     }
