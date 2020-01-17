@@ -67,6 +67,7 @@ class Schema extends DatabaseSchema {
    * @return
    *   An object with two member variables:
    *     - 'blob_fields' that lists all the blob fields in the table.
+   *     - 'clob_fields' that lists all the clob fields in the table.
    *     - 'sequences' that lists the sequences used in that table.
    */
   public function queryTableInformation($table) {
@@ -74,6 +75,7 @@ class Schema extends DatabaseSchema {
 
     $table_information = (object) [
       'blob_fields' => [],
+      'clob_fields' => [],
       'sequences' => [],
     ];
 
