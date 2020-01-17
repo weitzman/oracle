@@ -691,6 +691,15 @@ class Connection extends DatabaseConnection {
     return $ret;
   }
 
+  public function addSavepoint() {
+  }
+
+  public function releaseSavepoint() {
+  }
+
+  public function rollbackSavepoint() {
+  }
+
   /**
    * Oracle connection helper.
    */
