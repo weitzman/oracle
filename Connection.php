@@ -657,9 +657,6 @@ class Connection extends DatabaseConnection {
     if ($value === '') {
       return ORACLE_EMPTY_STRING_REPLACER;
     }
-    if (is_string($value) && strlen($value) > $this->maxVarchar2Size) {
-      return $this->writeBlob($value);
-    }
     return $value;
   }
 
