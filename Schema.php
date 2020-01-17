@@ -328,46 +328,47 @@ class Schema extends DatabaseSchema {
     // Put :normal last so it gets preserved by array_flip. This makes
     // it much easier for modules (such as schema.module) to map
     // database types back into schema types.
-    $map = array(
-      'varchar_ascii:normal' => 'varchar2',
+    static $map = [
+      'varchar_ascii:normal' => 'VARCHAR2',
 
-      'varchar:normal' => 'varchar2',
-      'char:normal' => 'char',
+      'varchar:normal'  => 'VARCHAR2',
+      'char:normal'     => 'CHAR',
 
-      'text:tiny' => 'varchar2',
-      'text:small' => 'varchar2',
-      'text:medium' => 'varchar2',
-      'text:big' => 'varchar2',
-      'text:normal' => 'varchar2',
+      'text:tiny'       => 'VARCHAR2',
+      'text:small'      => 'VARCHAR2',
+      'text:medium'     => 'CLOB',
+      'text:big'        => 'CLOB',
+      'text:normal'     => 'CLOB',
 
-      'int:tiny' => 'number',
-      'int:small' => 'number',
-      'int:medium' => 'number',
-      'int:big' => 'number',
-      'int:normal' => 'number',
+      'serial:tiny'     => 'NUMBER(3,0)',
+      'serial:small'    => 'NUMBER(5,0)',
+      'serial:medium'   => 'NUMBER(7,0)',
+      'serial:big'      => 'NUMBER(19,0)',
+      'serial:normal'   => 'NUMBER(10,0)',
 
-      'float:tiny' => 'number',
-      'float:small' => 'number',
-      'float:medium' => 'number',
-      'float:big' => 'number',
-      'float:normal' => 'number',
+      'int:tiny'        => 'NUMBER(3,0)',
+      'int:small'       => 'NUMBER(5,0)',
+      'int:medium'      => 'NUMBER(7,0)',
+      'int:big'         => 'NUMBER(19,0)',
+      'int:normal'      => 'NUMBER(10,0)',
 
-      'numeric:normal' => 'number',
+      'float:tiny'      => 'FLOAT',
+      'float:small'     => 'FLOAT',
+      'float:medium'    => 'FLOAT',
+      'float:big'       => 'FLOAT (24)',
+      'float:normal'    => 'FLOAT',
 
-      'blob:big' => 'varchar2',
-      'blob:normal' => 'varchar2',
+      'numeric:normal'  => 'FLOAT (24)',
 
+      'blob:big'        => 'BLOB',
+      'blob:normal'     => 'BLOB',
+
+      // @TODO Recheck this.
       'date:normal' => 'date',
 
       'datetime:normal' => 'timestamp with local time zone',
       'timestamp:normal' => 'timestamp',
       'time:normal'     => 'timestamp',
-
-      'serial:tiny' => 'number',
-      'serial:small' => 'number',
-      'serial:medium' => 'number',
-      'serial:big' => 'number',
-      'serial:normal' => 'number',
     );
 
     return $map;
