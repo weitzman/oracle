@@ -77,9 +77,32 @@ class Schema extends DatabaseSchema {
       'sequences' => [],
     ];
 
-    $this->tableInformation[$key] = $table_information;
+    if (empty($this->tableInformation[$key])) {
+      $file = '/tmp/table-info-' . $key . '.txt';
+      if (file_exists($file)) {
+        $data = unserialize(file_get_contents($file));
+        if ($data) {
+          $table_information = $data;
+        }
+      }
+
+      $this->tableInformation[$key] = $table_information;
+    }
 
     return $this->tableInformation[$key];
+  }
+
+  /**
+   * HACK
+   */
+  public function setTableInformation($table, $table_information) {
+    $key = $this->getTableInformationKey($table);
+
+    $this->tableInformation[$key] = $table_information;
+
+    // @TODO WRITE TO FS.
+    print_r(['TABLE INFO', $table, $table_information]);
+    file_put_contents('/tmp/table-info-' . $key . '.txt', serialize($table_information));
   }
 
   /**
@@ -254,14 +277,29 @@ class Schema extends DatabaseSchema {
       }
     }
 
+    // Update table_information "cache".
+    $table_information = $this->queryTableInformation($name);
+
     foreach ($table['fields'] as $field_name => $field) {
       if ($field['type'] == 'serial') {
+        $table_information->serial_fields[strtoupper($field_name)] = $field;
+        $table_information->sequences[] = strtoupper($this->connection->prefixTables($this->oid('SEQ_' . $name . '_' . $field_name, TRUE)));
         $statements = array_merge($statements, $this->createSerialSql($name, $field_name));
       }
       elseif ($field['type'] == 'blob') {
-        $statements[] = "INSERT INTO BLOB_COLUMN VALUES ('" . strtoupper($name) . "','" . strtoupper($field_name) . "')";
+        //$statements[] = "INSERT INTO BLOB_COLUMN VALUES ('" . strtoupper($name) . "','" . strtoupper($field_name) . "')";
+      }
+
+      $field = $this->processField($field);
+      if ($field['oracle_type'] == 'BLOB') {
+        $table_information->blob_fields[strtoupper($field_name)] = $field_name;
+      }
+      elseif ($field['oracle_type'] == 'CLOB') {
+        $table_information->clob_fields[strtoupper($field_name)] = $field_name;
       }
     }
+
+    $this->setTableInformation($name, $table_information);
 
     return $statements;
   }
