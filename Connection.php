@@ -676,6 +676,9 @@ class Connection extends DatabaseConnection {
         // Bind variables cannot have reserved names.
         $key = $this->getLongIdentifiersHandler()->escapeLongIdentifiers($key);
         $ret[$key] = $this->cleanupArgValue($value);
+
+        // MW: Replace empty strings. Fixed config->get().
+        $ret[$key] = $value === '' ? ORACLE_EMPTY_STRING_REPLACER : $value;
       }
     }
     else {
