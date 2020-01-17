@@ -32,12 +32,15 @@ class Insert extends QueryInsert {
     // the options array.
     $options = $this->queryOptions;
 
-    if (!empty($table_information->sequences)) {
-      $options['sequence_name'] = $table_information->sequences[0];
-    }
-    // If there are no sequences then we can't get a last insert id.
-    elseif ($options['return'] == Database::RETURN_INSERT_ID) {
-      $options['return'] = Database::RETURN_NULL;
+
+    if (class_exists("Drupal\Core\Database", FALSE)) {
+      if (!empty($table_information->sequences)) {
+        $options['sequence_name'] = $table_information->sequences[0];
+      }
+      // If there are no sequences then we can't get a last insert id.
+      elseif ($options['return'] == Database::RETURN_INSERT_ID) {
+        $options['return'] = Database::RETURN_NULL;
+      }
     }
 
     $stmt = $this->connection->prepareQuery((string) $this);
