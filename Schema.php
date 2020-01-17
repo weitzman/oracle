@@ -289,7 +289,7 @@ class Schema extends DatabaseSchema {
       unset($spec['not null']);
     }
 
-    if ($spec['oracle_type'] == 'varchar2') {
+    if ($spec['oracle_type'] == 'VARCHAR2') {
       $sql .= '(' . (!empty($spec['length']) ? $spec['length'] : ORACLE_MAX_VARCHAR2_LENGTH) . ' CHAR)';
     }
     elseif (!empty($spec['length'])) {
@@ -343,6 +343,22 @@ class Schema extends DatabaseSchema {
   }
 
   /**
+   * Returns Oracle specific field type infomration.
+   */
+  protected function getNumberPrecisionMap() {
+    // @TODO Use this for serial and int.
+    static $map = [
+      'tiny'     => 3,
+      'small'    => 5,
+      'medium'   => 7,
+      'big'      => 19,
+      'normal'   => 10,
+    ];
+
+    return $map;
+  }
+
+  /**
    * {@inheritdoc}
    */
   public function getFieldTypeMap() {
@@ -361,25 +377,25 @@ class Schema extends DatabaseSchema {
       'text:big'        => 'CLOB',
       'text:normal'     => 'CLOB',
 
-      'serial:tiny'     => 'NUMBER(3,0)',
-      'serial:small'    => 'NUMBER(5,0)',
-      'serial:medium'   => 'NUMBER(7,0)',
-      'serial:big'      => 'NUMBER(19,0)',
-      'serial:normal'   => 'NUMBER(10,0)',
+      'serial:tiny'     => 'NUMBER',
+      'serial:small'    => 'NUMBER',
+      'serial:medium'   => 'NUMBER',
+      'serial:big'      => 'NUMBER',
+      'serial:normal'   => 'NUMBER',
 
-      'int:tiny'        => 'NUMBER(3,0)',
-      'int:small'       => 'NUMBER(5,0)',
-      'int:medium'      => 'NUMBER(7,0)',
-      'int:big'         => 'NUMBER(19,0)',
-      'int:normal'      => 'NUMBER(10,0)',
+      'int:tiny'        => 'NUMBER',
+      'int:small'       => 'NUMBER',
+      'int:medium'      => 'NUMBER',
+      'int:big'         => 'NUMBER',
+      'int:normal'      => 'NUMBER',
 
       'float:tiny'      => 'FLOAT',
       'float:small'     => 'FLOAT',
       'float:medium'    => 'FLOAT',
-      'float:big'       => 'FLOAT (24)',
+      'float:big'       => 'DOUBLE PRECISION',
       'float:normal'    => 'FLOAT',
 
-      'numeric:normal'  => 'FLOAT (24)',
+      'numeric:normal'  => 'DOUBLE PRECISION',
 
       'blob:big'        => 'BLOB',
       'blob:normal'     => 'BLOB',
