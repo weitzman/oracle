@@ -111,7 +111,7 @@ class Insert extends QueryInsert {
    * {@inheritdoc}
    */
   public function __toString() {
-    $info = $this->connection->schema()->queryTableInformation($this->table);
+    $table_information = $this->connection->schema()->queryTableInformation($this->table);
 
     // Default fields are always placed first for consistency.
     $insert_fields = array_merge($this->defaultFields, $this->insertFields);
@@ -130,11 +130,12 @@ class Insert extends QueryInsert {
 
     $max_placeholder = 0;
     $values = array();
+
     if (count($this->insertValues)) {
       $placeholders = array();
       $placeholders = array_pad($placeholders, count($this->defaultFields), 'default');
       $i = 0;
-      foreach ($this->insertFields as $key => $value) {
+      foreach ($this->insertFields as $idx => $field) {
         $placeholders[] = ':db_insert_placeholder_' . $i++;
       }
       $values = '(' . implode(', ', $placeholders) . ')';
