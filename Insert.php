@@ -26,7 +26,7 @@ class Insert extends QueryInsert {
       return NULL;
     }
 
-    $info = $this->connection->schema()->getTableInfo($this->table);
+    $info = $this->connection->schema()->queryTableInformation($this->table);
     if (!empty($info->sequence_name)) {
       $this->queryOptions['sequence_name'] = $info->sequence_name;
       if (class_exists("Database")) {
@@ -85,7 +85,7 @@ class Insert extends QueryInsert {
    * {@inheritdoc}
    */
   public function __toString() {
-    $info = $this->connection->schema()->getTableInfo($this->table);
+    $info = $this->connection->schema()->queryTableInformation($this->table);
 
     // Default fields are always placed first for consistency.
     $insert_fields = array_merge($this->defaultFields, $this->insertFields);
