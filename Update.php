@@ -11,16 +11,74 @@ use Drupal\Core\Database\Query\SelectInterface;
  */
 class Update extends QueryUpdate {
 
+  /**
+   * {@inheritdoc}
+   */
   public function execute() {
-    // Convert TABLE keys to upper case.
+    // Check for blob fields as blobs need a transaction.
+    $table_information = $this->connection->schema()->queryTableInformation($this->table);
+    $has_blobs = FALSE;
+
+    // Convert updates keys to upper case so that Postgres blob handling will
+    // work and check for blob fields so that we can start a transaction if
+    // needed.
     $fields = [];
     foreach ($this->fields as $field => $value) {
-      $fields[strtoupper($field)] = $value;
-    }
+      $field = strtoupper($field);
+      if (isset($table_information->blob_fields[$field])) {
+        $has_blobs = TRUE;
+      }
 
+      $fields[$field] = $value;
+    }
     $this->fields = $fields;
 
-    parent::execute();
+    if (!$has_blobs || $this->connection->inTransaction()) {
+      return parent::execute();
+    }
+
+    // Blob writing only works while in a transaction.
+    $transaction = $this->connection->startTransaction();
+    try {
+      return parent::execute();
+    }
+    catch (\Exception $e) {
+      $transaction->rollback();
+      throw $e;
+    }
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function __toString() {
+    $query = parent::__toString();
+
+    // Change the query for blobs to use the RETURNING SYNTAX.
+    $table_information = $this->connection->schema()->queryTableInformation($this->table);
+
+    $blobs = [];
+    $i = 0;
+
+    foreach ($this->fields as $field => $value) {
+      if (isset($table_information->blob_fields[strtoupper($field)])) {
+        $blobs[$field] = ':db_update_placeholder_' . $i;
+      }
+
+      $i++;
+    }
+
+    // The syntax for updating a blob is:
+    // UPDATE foo SET data = EMPTY_BLOB() WHERE bar = 42 RETURNING data INTO :d
+    if (!empty($blobs)) {
+      foreach ($blobs as $field => $placeholder) {
+        $query = str_replace($placeholder, 'EMPTY_BLOB()', $query);
+      }
+
+      $query .= ' RETURNING ' . implode(', ', array_keys($blobs)) . ' INTO ' . implode(', ', array_values($blobs));
+    }
+
+    return $query;
   }
 
 }
