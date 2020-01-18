@@ -66,7 +66,6 @@ class Insert extends QueryInsert {
           $max_placeholder = 0;
           $blobs = [];
           $blob_count = 0;
-
           foreach ($this->insertFields as $idx => $field) {
             $insert_values[$idx] = $this->connection->cleanupArgValue($insert_values[$idx]);
 
@@ -130,15 +129,25 @@ class Insert extends QueryInsert {
 
     $max_placeholder = 0;
     $values = array();
+    $blobs = [];
 
     if (count($this->insertValues)) {
       $placeholders = array();
       $placeholders = array_pad($placeholders, count($this->defaultFields), 'default');
       $i = 0;
       foreach ($this->insertFields as $idx => $field) {
-        $placeholders[] = ':db_insert_placeholder_' . $i++;
+        if (isset($table_information->blob_fields[strtoupper($field)])) {
+          $blobs[$field] = ':db_insert_placeholder_' . $i++;
+          $placeholders[] = 'EMPTY_BLOB()';
+        }
+        else {
+          $placeholders[] = ':db_insert_placeholder_' . $i++;
+        }
       }
       $values = '(' . implode(', ', $placeholders) . ')';
+      if (!empty($blobs)) {
+        $values .= ' RETURNING ' . implode(', ', array_keys($blobs)) . ' INTO ' . implode(', ', array_values($blobs));
+      }
     }
     else {
       if (count($this->defaultFields) > 0) {
