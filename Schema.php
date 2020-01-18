@@ -343,6 +343,11 @@ class Schema extends DatabaseSchema {
       $sql .= '(' . $spec['length'] . ')';
     }
     elseif (isset($spec['precision']) && isset($spec['scale'])) {
+      if ($spec['oracle_type'] == 'DOUBLE PRECISION' || $spec['oracle_type'] == 'FLOAT') {
+        // For double and floats and precision and scale only NUMBER is supported.
+        // @todo Check performance at some point.
+        $sql = $oname . ' NUMBER';
+      }
       $sql .= '(' . $spec['precision'] . ', ' . $spec['scale'] . ')';
     }
 

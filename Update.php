@@ -71,11 +71,13 @@ class Update extends QueryUpdate {
     // The syntax for updating a blob is:
     // UPDATE foo SET data = EMPTY_BLOB() WHERE bar = 42 RETURNING data INTO :d
     if (!empty($blobs)) {
+      $query .= ' ';
+
       foreach ($blobs as $field => $placeholder) {
-        $query = str_replace($placeholder, 'EMPTY_BLOB()', $query);
+        $query = str_replace($placeholder . ' ', 'EMPTY_BLOB() ', $query);
       }
 
-      $query .= ' RETURNING ' . implode(', ', array_keys($blobs)) . ' INTO ' . implode(', ', array_values($blobs));
+      $query .= 'RETURNING ' . implode(', ', array_keys($blobs)) . ' INTO ' . implode(', ', array_values($blobs));
     }
 
     return $query;
