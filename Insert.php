@@ -47,7 +47,6 @@ class Insert extends QueryInsert {
 
     if (!empty($this->fromQuery)) {
       foreach ($this->fromQuery->getArguments() as $key => $value) {
-        $value = $this->connection->cleanupArgValue($value);
         $stmt->bindParam($key, $value);
       }
       // The SelectQuery may contain arguments, load and pass them through.
@@ -67,8 +66,6 @@ class Insert extends QueryInsert {
           $blobs = [];
           $blob_count = 0;
           foreach ($this->insertFields as $idx => $field) {
-            $insert_values[$idx] = $this->connection->cleanupArgValue($insert_values[$idx]);
-
             if (isset($table_information->blob_fields[strtoupper($field)])) {
               $blobs[$blob_count] = fopen('php://memory', 'a');
               fwrite($blobs[$blob_count], $insert_values[$idx]);

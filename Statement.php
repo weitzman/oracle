@@ -31,6 +31,25 @@ class Statement extends DatabaseStatement implements \IteratorAggregate {
   /**
    * {@inheritdoc}
    */
+  public function bindParam($parameter, &$variable, $data_type = \PDO::PARAM_STR, $max_length = -1, $driver_options = null) {
+    if ($data_type != \PDO::PARAM_STR) {
+      return parent::bindParam($parameter, $variable, $data_type, $max_length, $driver_options);
+    }
+
+    if ($variable === '') {
+      $variable = $this->dbh->cleanupArgValue($variable);
+    }
+
+    if ($max_length === -1) {
+      $max_length = strlen((string) $variable);
+    }
+
+    return parent::bindParam($parameter, $variable, $data_type, $max_length, $driver_options);
+  }
+
+  /**
+   * {@inheritdoc}
+   */
   public function fetch($fetch_style = NULL, $cursor_orientation = \PDO::FETCH_ORI_NEXT, $cursor_offset = 0) {
     return $this->dbh->cleanupFetched(parent::fetch($fetch_style, $cursor_orientation, $cursor_offset));
   }
