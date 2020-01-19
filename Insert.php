@@ -75,11 +75,6 @@ class Insert extends QueryInsert {
               // Pre-increment is faster in PHP than increment.
               ++$blob_count;
             }
-            /* CLOB support */
-            elseif (isset($table_information->clob_fields[strtoupper($field)])) {
-              $insert_values[$idx] = (string) $insert_values[$idx];
-              $stmt->bindParam(':db_insert_placeholder_' . $max_placeholder++, $insert_values[$idx], \PDO::PARAM_STR, strlen($insert_values[$idx]));
-            }
             else {
               $stmt->bindParam(':db_insert_placeholder_' . $max_placeholder++, $insert_values[$idx]);
             }
