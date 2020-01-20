@@ -531,13 +531,6 @@ class Connection extends DatabaseConnection {
       $query);
 
     $query = preg_replace_callback(
-      '/(UID|SESSION|FILE|ACCESS|MODE|COMMENT|DESC|SIZE|START|END|INCREMENT)=/',
-      function ($matches) {
-        return '"' . $matches[1] . '" = ';
-      },
-      $query);
-
-    $query = preg_replace_callback(
       '/(<uid>|<session>|<file>|<access>|<mode>|<comment>|<desc>|<size>' . ($ddl ? '' : '|<date>') . ')/',
       function ($matches) {
         return '"' . strtoupper($matches[1]) . '"';
