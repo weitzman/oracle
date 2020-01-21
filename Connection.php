@@ -46,6 +46,119 @@ define('ORACLE_ROWNUM_ALIAS', 'RWN_TO_REMOVE');
  */
 class Connection extends DatabaseConnection {
 
+  protected $oracleReservedWords = [
+    'ACCESS',
+    'ADD',
+    'ALL',
+    'ALTER',
+    'AND',
+    'ANY',
+    'AS',
+    'ASC',
+    'AUDIT',
+    'BETWEEN',
+    'BY',
+    'CHAR',
+    'CHECK',
+    'CLUSTER',
+    'COLUMN',
+    'COLUMN_VALUE',
+    'COMMENT',
+    'COMPRESS',
+    'CONNECT',
+    'CREATE',
+    'CURRENT',
+    'DATE',
+    'DECIMAL',
+    'DEFAULT',
+    'DELETE',
+    'DESC',
+    'DISTINCT',
+    'DROP',
+    'ELSE',
+    'EXCLUSIVE',
+    'EXISTS',
+    'FILE',
+    'FLOAT',
+    'FOR',
+    'FROM',
+    'GRANT',
+    'GROUP',
+    'HAVING',
+    'IDENTIFIED',
+    'IMMEDIATE',
+    'IN',
+    'INCREMENT',
+    'INDEX',
+    'INITIAL',
+    'INSERT',
+    'INTEGER',
+    'INTERSECT',
+    'INTO',
+    'IS',
+    'LEVEL',
+    'LIKE',
+    'LOCK',
+    'LONG',
+    'MAXEXTENTS',
+    'MINUS',
+    'MLSLABEL',
+    'MODE',
+    'MODIFY',
+    'NESTED_TABLE_ID',
+    'NOAUDIT',
+    'NOCOMPRESS',
+    'NOT',
+    'NOWAIT',
+    'NULL',
+    'NUMBER',
+    'OF',
+    'OFFLINE',
+    'ON',
+    'ONLINE',
+    'OPTION',
+    'OR',
+    'ORDER',
+    'PCTFREE',
+    'PRIOR',
+    'PUBLIC',
+    'RAW',
+    'RENAME',
+    'RESOURCE',
+    'REVOKE',
+    'ROW',
+    'ROWID',
+    'ROWNUM',
+    'ROWS',
+    'SELECT',
+    'SESSION',
+    'SET',
+    'SHARE',
+    'SIZE',
+    'SMALLINT',
+    'START',
+    'SUCCESSFUL',
+    'SYNONYM',
+    'SYSDATE',
+    'TABLE',
+    'THEN',
+    'TO',
+    'TRIGGER',
+    'UID',
+    'UNION',
+    'UNIQUE',
+    'UPDATE',
+    'USER',
+    'VALIDATE',
+    'VALUES',
+    'VARCHAR',
+    'VARCHAR2',
+    'VIEW',
+    'WHENEVER',
+    'WHERE',
+    'WITH',
+  ];
+
   /**
    * Error code for "Unknown database" error.
    */
@@ -430,6 +543,65 @@ class Connection extends DatabaseConnection {
     $query = $this->prefixTables($query, TRUE);
     $query = $this->escapeIfFunction($query);
     return $this->prepare($query);
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function escapeField($field) {
+    $escaped = parent::escapeField($field);
+
+    // Remove any invalid start character.
+    $escaped = preg_replace('/^[^A-Za-z0-9_]/', '', $escaped);
+
+    // The pgsql database driver does not support field names that contain
+    // periods (supported by PostgreSQL server) because this method may be
+    // called by a field with a table alias as part of SQL conditions or
+    // order by statements. This will consider a period as a table alias
+    // identifier, and split the string at the first period.
+    if (preg_match('/^([A-Za-z0-9_]+)"?[.]"?([A-Za-z0-9_.]+)/', $escaped, $parts)) {
+      $table = $parts[1];
+      $column = $parts[2];
+
+      // Use escape alias because escapeField may contain multiple periods that
+      // need to be escaped.
+      $escaped = $this->escapeTable($table) . '.' . $this->escapeAlias($column);
+    }
+    else {
+      $escaped = $this->doEscape($escaped);
+    }
+
+    return $escaped;
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function escapeAlias($field) {
+    $escaped = preg_replace('/[^A-Za-z0-9_]+/', '', $field);
+    $escaped = $this->doEscape($escaped);
+    return $escaped;
+  }
+
+  /**
+   * Escape a string if needed.
+   *
+   * @param $string
+   *   The string to escape.
+   * @return string
+   *   The escaped string.
+   */
+  protected function doEscape($string) {
+    // Quote identifier to make it case-sensitive.
+    // @todo Rework?
+    if (preg_match('/[A-Z]/', $string)) {
+      $string = '"' . $string . '"';
+    }
+    elseif (in_array(strtoupper($string), $this->oracleReservedWords)) {
+      // Quote the string for Oracle reserved key words.
+      $string = '"' . strtoupper($string) . '"';
+    }
+    return $string;
   }
 
   /**
