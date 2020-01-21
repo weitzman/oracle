@@ -100,8 +100,6 @@ class Schema extends DatabaseSchema {
 
     $this->tableInformation[$key] = $table_information;
 
-    // @TODO WRITE TO FS.
-    print_r(['TABLE INFO', $table, $table_information]);
     file_put_contents('/tmp/table-info-' . $key . '.txt', serialize($table_information));
   }
 
