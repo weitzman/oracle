@@ -78,29 +78,20 @@ class Schema extends DatabaseSchema {
     ];
 
     if (empty($this->tableInformation[$key])) {
-      $file = '/tmp/table-info-' . $key . '.txt';
-      if (file_exists($file)) {
-        $data = unserialize(file_get_contents($file));
-        if ($data) {
-          $table_information = $data;
-        }
-      }
+      $table_name = strtoupper($this->connection->prefixTables('{' . $table . '}'));
+      // @todo Support schema.
+      $blobs = $this->connection->query("SELECT column_name FROM user_tab_columns WHERE data_type = 'BLOB' AND table_name = :db_table", [':db_table' => $table_name])
+        ->fetchCol();
+      $sequences = $this->connection->query("SELECT sequence_name FROM user_tab_identity_cols WHERE table_name = :db_table", [':db_table' => $table_name])
+        ->fetchCol();
+
+      $table_information->blob_fields = array_combine($blobs, $blobs);
+      $table_information->sequences = $sequences;
 
       $this->tableInformation[$key] = $table_information;
     }
 
     return $this->tableInformation[$key];
-  }
-
-  /**
-   * HACK
-   */
-  public function setTableInformation($table, $table_information) {
-    $key = $this->getTableInformationKey($table);
-
-    $this->tableInformation[$key] = $table_information;
-
-    file_put_contents('/tmp/table-info-' . $key . '.txt', serialize($table_information));
   }
 
   /**
@@ -274,34 +265,6 @@ class Schema extends DatabaseSchema {
         $statements[] = 'COMMENT ON COLUMN ' . $oname . '.' . $this->oid($field_name) . ' IS ' . $this->prepareComment($field['description']);
       }
     }
-
-    // Update table_information "cache".
-    $table_information = $this->queryTableInformation($name);
-
-    $sequences = [];
-    $table_information->blob_fields = [];
-    $table_information->sequences = [];
-
-    foreach ($table['fields'] as $field_name => $field) {
-      $field = $this->processField($field);
-      if ($field['type'] == 'serial') {
-        $sequences[strtoupper($field_name)] = $this->oid('SEQ_' . $name . '_' . $field_name, FALSE, FALSE);
-        $table_information->serial_fields[strtoupper($field_name)] = $field_name;
-        $statements = array_merge($statements, $this->createSerialSql($name, $field_name));
-      }
-
-      if ($field['oracle_type'] == 'BLOB') {
-        $table_information->blob_fields[strtoupper($field_name)] = $field_name;
-      }
-    }
-
-    if (!empty($sequences)) {
-      $table_information->sequences = array_values($sequences);
-      // @todo Convert to new sequences
-      $table_information->sequence_name = $table_information->sequences[0];
-    }
-
-    $this->setTableInformation($name, $table_information);
 
     return $statements;
   }
