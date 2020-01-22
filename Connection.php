@@ -243,13 +243,14 @@ class Connection extends DatabaseConnection {
     try {
       if ($query instanceof \PDOStatement) {
         $stmt = $query;
-        $stmt->execute(empty($args) ? NULL : (array) $args, $options);
       }
       else {
         $this->expandArguments($query, $args);
         $stmt = $this->prepareQuery($query);
-        $stmt->execute($this->cleanupArgs($args), $options);
+        $args = $this->cleanupArgs($args);
       }
+
+      $stmt->execute(empty($args) ? NULL : (array) $args, $options);
 
       switch ($options['return']) {
         case Database::RETURN_STATEMENT:
