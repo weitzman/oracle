@@ -74,7 +74,13 @@ class Update extends QueryUpdate {
       $query .= ' ';
 
       foreach ($blobs as $field => $placeholder) {
-        $query = str_replace($placeholder . ' ', 'EMPTY_BLOB() ', $query);
+        // Find position of $placeholder in $query.
+        $pos = strpos($query, $placeholder);
+        if ($pos !== FALSE) {
+          // Now replace only the first occurence of the $placeholder in the $query as
+          // this avoids accidentally replacing an unrelated placeholder.
+          $query = substr_replace($query, 'EMPTY_BLOB()', $pos, strlen($placeholder));
+        }
       }
 
       $query .= 'RETURNING ' . implode(', ', array_keys($blobs)) . ' INTO ' . implode(', ', array_values($blobs));
