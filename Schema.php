@@ -78,7 +78,7 @@ class Schema extends DatabaseSchema {
     ];
 
     if (empty($this->tableInformation[$key])) {
-      $table_name = strtoupper($this->connection->prefixTables('{' . $table . '}'));
+      $table_name = strtoupper($this->connection->prefixTables('{' . $table . '}', TRUE));
       // @todo Support schema.
       $blobs = $this->connection->query("SELECT column_name FROM user_tab_columns WHERE data_type = 'BLOB' AND table_name = :db_table", [':db_table' => $table_name])
         ->fetchCol();
