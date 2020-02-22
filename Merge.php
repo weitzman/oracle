@@ -9,6 +9,8 @@ use Drupal\Core\Database\Query\Merge as QueryMerge;
  */
 class Merge extends QueryMerge {
 
+  use OracleQueryTrait;
+
   /**
    * {@inheritdoc}
    */

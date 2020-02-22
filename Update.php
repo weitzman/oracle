@@ -11,6 +11,8 @@ use Drupal\Core\Database\Query\SelectInterface;
  */
 class Update extends QueryUpdate {
 
+  use OracleQueryTrait;
+
   /**
    * {@inheritdoc}
    */
