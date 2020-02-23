@@ -7,4 +7,6 @@ use Drupal\Core\Database\Query\Delete as QueryDelete;
 /**
  * Oracle implementation of \Drupal\Core\Database\Query\Delete.
  */
-class Delete extends QueryDelete {}
+class Delete extends QueryDelete {
+  use OracleQueryTrait;
+}
