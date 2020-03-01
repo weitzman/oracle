@@ -2,6 +2,8 @@
 
 namespace Drupal\Driver\Database\oracle;
 
+use Drupal\Core\Database\Query\Condition;
+use Drupal\Core\Database\Query\ConditionInterface;
 use Drupal\Core\Database\Query\SelectInterface;
 
 trait OracleQueryTrait {
@@ -19,11 +21,25 @@ trait OracleQueryTrait {
     }
 
     // Split large IN statements.
-    foreach ($query->conditions() as $index => &$condition) {
-      $this->splitIn($condition);
-    }
+    $this->splitRecursive($query->conditions());
 
     return $return;
+  }
+
+  /**
+   * Iterate over all conditions, even nested ones, and split large OR conditions.
+   *
+   * @param array $conditions
+   */
+  public function splitRecursive(&$conditions) {
+    foreach ($conditions as &$condition) {
+      if (isset($condition['field']) && $condition['field'] instanceof ConditionInterface) {
+        $this->splitRecursive($condition['field']->conditions());
+      }
+      else {
+        $this->splitIn($condition);
+      }
+    }
   }
 
   /**
@@ -31,8 +47,6 @@ trait OracleQueryTrait {
    * Use multiple OR workaround https://stackoverflow.com/a/26223818/265501.
    *
    * @param $condition
-   * @return array
-   *   Multiple IN clauses conjoined by OR.
    */
   public function splitIn(&$condition) {
     // The environment variable below is useful for testing/debugging.
