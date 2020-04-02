@@ -310,22 +310,13 @@ class Connection extends DatabaseConnection {
    * {@inheritdoc}
    */
   public function queryRange($query, $from, $count, array $args = array(), array $options = array()) {
-    $start = (int) $from + 1;
-    $end = (int) $count + (int) $from;
-
-    $query_string = 'SELECT * FROM (SELECT TAB.*, ROWNUM ' . ORACLE_ROWNUM_ALIAS . ' FROM (' . $query . ') TAB) WHERE ' . ORACLE_ROWNUM_ALIAS . ' BETWEEN ';
-    if (Connection::isAssoc($args)) {
-      $args['oracle_rwn_start'] = $start;
-      $args['oracle_rwn_end'] = $end;
-      $query_string .= ':oracle_rwn_start AND :oracle_rwn_end';
-    }
-    else {
-      $args[] = $start;
-      $args[] = $end;
-      $query_string .= '? AND ?';
+    if (!$from) {
+      $query .= sprintf(" FETCH FIRST %d ROWS ONLY", (int) $count);
+    } else {
+      $query .= sprintf(" OFFSET %d ROWS FETCH NEXT %d ROWS ONLY", (int) $from, (int) $count);
     }
 
-    return $this->query($query_string, $args, $options);
+    return $this->query($query, $args, $options);
   }
 
   /**
